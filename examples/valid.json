@@ -1,14 +1,7 @@
 {
   "benchmark": "latency",
-  "configuration": {
-    "model": "local"
-  },
+  "configuration": {"model": "local"},
   "duration_ms": 120,
-  "result": {
-    "score": 0.9
-  },
-  "artifacts": [
-    "report.json"
-  ]
+  "result": {"score": 0.9},
+  "artifacts": [{"path": "report.json", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
 }
-
