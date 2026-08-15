@@ -5,11 +5,14 @@ from pathlib import Path
 from .core import evaluate
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate anonymized, reproducible coordination failure scenarios.")
+    parser = argparse.ArgumentParser(description="Minimize and best-effort redact bounded coordination failure scenarios.")
     parser.add_argument("record", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
-    result = evaluate(json.loads(args.record.read_text(encoding="utf-8")))
+    try:
+        result = evaluate(json.loads(args.record.read_text(encoding="utf-8")))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        result = {"project": parser.prog, "status": "failed", "reason": f"invalid input file: {exc}", "corpus_entry": None}
     rendered = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(rendered, encoding="utf-8")
@@ -19,4 +22,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
