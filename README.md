@@ -1,2 +1,83 @@
-# promptbench
-Reproducible offline prompt and model benchmarks with explicit judges and evidence.
+# PromptBench
+
+PromptBench is a deterministic, offline harness for comparing prompt/model candidates on the same versioned scenarios and limits. It reports pass rate, pass@1, score variance, tokens, latency, cost, recovery, and bounded diffs while preserving failures instead of showing only winning runs.
+
+Version 0.1.0 uses versioned replay samples. That makes every example reproducible without a provider account, API key, network call, cache, or wall-clock dependency.
+
+## Quick start
+
+```bash
+python -m pip install -e .
+promptbench validate --suite examples/suite.json
+promptbench run --suite examples/suite.json --output /tmp/promptbench-report.json
+promptbench verify --report /tmp/promptbench-report.json
+```
+
+Run the fully synthetic demonstration:
+
+```bash
+promptbench demo --workspace /tmp/promptbench-demo
+```
+
+## Fair comparison contract
+
+- every candidate receives the same scenario version, order, repeat count, and output limit;
+- the dataset contains explicit difficulty and expected results;
+- response producers are separate from deterministic judges;
+- errors, invalid output, mismatches, and later recovery remain in the report;
+- ranking uses pass rate, then cost, mean latency, and candidate id;
+- the report binds the full suite and result through SHA-256 evidence.
+
+## Judges
+
+The public harness includes three explicit rule-based judges:
+
+- `exact` with optional case and whitespace normalization;
+- `contains` for required bounded text;
+- `json_equal` for parsed JSON equality independent of key order.
+
+Judges return pass/fail, a numeric score, a reason, and a bounded diff. They never call the response producer or another model.
+
+## Probes
+
+```bash
+promptbench probe --level liveness
+promptbench probe --level readiness
+promptbench probe --level functional
+```
+
+The functional probe contains a control that must pass and a counter-example that must fail. The probe succeeds only when both behaviors are observed and the failed records remain present.
+
+## CI gate
+
+`--minimum-pass-rate` returns exit code 3 when the best candidate is below a chosen threshold:
+
+```bash
+promptbench run --suite examples/suite.json --minimum-pass-rate 0.8
+```
+
+Operational input or schema errors use exit code 2; report verification failure uses exit code 4.
+
+## Development
+
+```bash
+python scripts/check.py
+PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m promptbench probe --level functional
+python -m compileall -q src tests scripts
+```
+
+CI repeats validation on Python 3.11 and 3.12, runs the example suite, exercises the counter-proof and demo, and builds a wheel.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Suite and report schemas](docs/SCHEMA.md)
+- [Methodology and limits](docs/METHODOLOGY.md)
+- [Safety](docs/SAFETY.md)
+- [Contributing](CONTRIBUTING.md)
+- [AI assistance disclosure](AI_ASSISTANCE.md)
+
+## License
+
+Apache License 2.0.

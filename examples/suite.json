@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0",
+  "suite_id": "public-example",
+  "version": "1.0.0",
+  "limits": {
+    "repeats": 3,
+    "max_output_chars": 1000
+  },
+  "scenarios": [
+    {
+      "id": "capital",
+      "difficulty": "easy",
+      "input": "What is the capital of France?",
+      "expected": "Paris",
+      "judge": {
+        "type": "exact",
+        "case_sensitive": false,
+        "normalize_whitespace": true
+      }
+    },
+    {
+      "id": "structured",
+      "difficulty": "medium",
+      "input": "Return a JSON object with ok set to true.",
+      "expected": {
+        "ok": true
+      },
+      "judge": {
+        "type": "json_equal"
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "id": "concise",
+      "model": "replay-v1",
+      "prompt_template": "Answer concisely: {input}",
+      "input_price_microunits_per_1k": 2000,
+      "output_price_microunits_per_1k": 4000
+    },
+    {
+      "id": "verbose",
+      "model": "replay-v2",
+      "prompt_template": "Explain and answer: {input}",
+      "input_price_microunits_per_1k": 3000,
+      "output_price_microunits_per_1k": 6000
+    }
+  ],
+  "replay": {
+    "concise": {
+      "capital": [
+        {"output": "Paris", "latency_ms": 12, "input_tokens": 7, "output_tokens": 1},
+        {"output": "Paris", "latency_ms": 14, "input_tokens": 7, "output_tokens": 1},
+        {"output": "Paris", "latency_ms": 13, "input_tokens": 7, "output_tokens": 1}
+      ],
+      "structured": [
+        {"output": "{\"ok\": false}", "latency_ms": 15, "input_tokens": 8, "output_tokens": 4},
+        {"output": "{\"ok\": true}", "latency_ms": 17, "input_tokens": 8, "output_tokens": 4},
+        {"output": "{\"ok\": true}", "latency_ms": 16, "input_tokens": 8, "output_tokens": 4}
+      ]
+    },
+    "verbose": {
+      "capital": [
+        {"output": "The answer is Paris.", "latency_ms": 20, "input_tokens": 8, "output_tokens": 5},
+        {"output": "The answer is Paris.", "latency_ms": 22, "input_tokens": 8, "output_tokens": 5},
+        {"output": "The answer is Paris.", "latency_ms": 21, "input_tokens": 8, "output_tokens": 5}
+      ],
+      "structured": [
+        {"output": "{\"ok\": true}", "latency_ms": 24, "input_tokens": 9, "output_tokens": 4},
+        {"output": "{\"ok\": true}", "latency_ms": 26, "input_tokens": 9, "output_tokens": 4},
+        {"error": "synthetic timeout", "latency_ms": 50, "input_tokens": 9, "output_tokens": 0}
+      ]
+    }
+  }
+}
