@@ -1,0 +1,10 @@
+{
+  "scenario_id": "failure-1",
+  "category": "timeout",
+  "reproduction": [
+    "start worker",
+    "advance clock"
+  ],
+  "expected_failure": "TIMEOUT"
+}
+
