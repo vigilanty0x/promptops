@@ -1,0 +1,8 @@
+{
+  "name": "summarize",
+  "version": "1.0.0",
+  "prompt": "Summarize {text}",
+  "variables": ["text"],
+  "output_schema": {"type": "string"},
+  "tests": [{"variables": {"text": "x"}, "expected_prompt": "Summarize x", "output": "summary"}]
+}
