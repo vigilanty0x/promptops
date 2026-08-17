@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{name = "vigilanty0x"}]
-keywords = ["prompts", "models", "benchmark", "evaluation", "replay"]
+keywords = ["prompts", "models", "benchmark", "evaluation", "replay", "promptops", "regression"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -24,6 +24,7 @@ dependencies = []
 
 [project.scripts]
 promptbench = "promptbench.cli:main"
+promptops = "promptbench.ops_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
