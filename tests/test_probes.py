@@ -1,12 +1,13 @@
 import unittest
 
+from promptbench import __version__
 from promptbench.probes import functional_probe, inventory, liveness_probe, readiness_probe
 
 
 class ProbeTests(unittest.TestCase):
     def test_liveness_proves_version(self):
         result = liveness_probe()
-        self.assertEqual(result, {"probe": "liveness", "status": "alive", "version": "0.1.0"})
+        self.assertEqual(result, {"probe": "liveness", "status": "alive", "version": __version__})
 
     def test_readiness_proves_inventory(self):
         result = readiness_probe()
