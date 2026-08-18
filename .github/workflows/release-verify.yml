@@ -21,11 +21,11 @@ jobs:
           python-version: "3.12"
       - name: Validate release publication policy
         run: python scripts/check_release_publish_policy.py
-      - name: Download published release and resolve tag
+      - name: Download latest verified published release and resolve tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="$(python -c 'import json; print(json.load(open("release-policy.v1.json"))["tag"])')"
+          TAG="$(python -c 'import json; print(json.load(open("published-release.v1.json"))["tag"])')"
           mkdir -p /tmp/published-release
           gh release view "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
@@ -41,13 +41,13 @@ jobs:
           python scripts/verify_published_release.py \
             --assets-dir /tmp/published-release \
             --view-json /tmp/release-view.json \
-            --policy release-policy.v1.json \
+            --published-release published-release.v1.json \
             --tag-sha /tmp/tag-sha.txt
       - name: Re-verify published wheel provenance
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="$(python -c 'import json; print(json.load(open("release-policy.v1.json"))["version"])')"
+          VERSION="$(python -c 'import json; print(json.load(open("published-release.v1.json"))["version"])')"
           SOURCE_DIGEST="$(cat /tmp/tag-sha.txt)"
           PROVENANCE_ZIP="/tmp/published-release/promptops-${VERSION}-provenance.zip"
           rm -rf /tmp/published-provenance
