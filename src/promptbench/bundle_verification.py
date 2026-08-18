@@ -2,8 +2,11 @@
 
 The bundle verifier never scans directories and never fetches remote evidence.
 Callers supply the release manifest and every local dataset/scorecard/regression
-artifact that should satisfy its references.  Each artifact is verified first,
-then the exact unique reference set and regression gate are reconciled.
+artifact that should satisfy its references. Each artifact is verified first,
+then the exact unique evidence set and release-gate semantics are reconciled.
+
+One physical evidence artifact may satisfy repeated identical SHA references in
+the release manifest. Reference multiplicity still matters for gate counters.
 """
 
 from __future__ import annotations
@@ -85,12 +88,16 @@ def verify_release_bundle(
     if dataset_key not in supplied:
         raise OpsValidationError("release dataset evidence is missing")
 
-    regression_artifacts = [
+    # Preserve reference multiplicity from the producer: a release may contain
+    # the same regression SHA more than once. One supplied artifact satisfies
+    # the repeated reference, while each reference still contributes to the
+    # release producer's failed_regression_count.
+    regression_references = [
         supplied[_reference_key("regression", artifact_sha)]
-        for artifact_sha in dict.fromkeys(release["regression_shas"])
+        for artifact_sha in release["regression_shas"]
     ]
     observed_failed = sum(
-        1 for regression in regression_artifacts if regression.get("passed") is False
+        1 for regression in regression_references if regression.get("passed") is False
     )
     if release["failed_regression_count"] != observed_failed:
         raise OpsValidationError(
@@ -103,6 +110,12 @@ def verify_release_bundle(
         )
 
     receipts.sort(key=lambda item: (item["kind"], item["artifact_sha"]))
+    unique_scorecards = {
+        _reference_key("scorecard", sha) for sha in release["scorecard_shas"]
+    }
+    unique_regressions = {
+        _reference_key("regression", sha) for sha in release["regression_shas"]
+    }
     return {
         "valid": True,
         "release_sha": release_receipt["artifact_sha"],
@@ -113,10 +126,10 @@ def verify_release_bundle(
         "expected_unique_evidence_count": len(expected),
         "provided_unique_evidence_count": len(supplied),
         "dataset_verified": True,
-        "scorecard_count": len(
-            {_reference_key("scorecard", sha) for sha in release["scorecard_shas"]}
-        ),
-        "regression_count": len(regression_artifacts),
+        "scorecard_reference_count": len(release["scorecard_shas"]),
+        "unique_scorecard_count": len(unique_scorecards),
+        "regression_reference_count": len(release["regression_shas"]),
+        "unique_regression_count": len(unique_regressions),
         "observed_failed_regression_count": observed_failed,
         "release_gate_passed": observed_gate,
         "integrity": "verified",
