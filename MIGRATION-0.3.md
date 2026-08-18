@@ -1,6 +1,6 @@
 # Migration vers PromptOps 0.3.0
 
-PromptOps 0.3.0 ajoute le routing déterministe offline et consolide le portfolio historique sans remplacer les contrats PromptBench/PromptOps introduits en 0.2.0.
+PromptOps 0.3.0 ajoute le routing déterministe offline, durcit l’intégrité du gate de release et consolide le portfolio historique sans remplacer les contrats PromptBench/PromptOps introduits en 0.2.0.
 
 ## Compatibilité
 
@@ -35,6 +35,20 @@ Contraintes optionnelles :
 
 Le scorecard est vérifié avant décision. Un artefact altéré est refusé avec code `2`. Si aucun candidat ne satisfait toutes les contraintes, le résultat contient `decision=abstain` et la CLI retourne `3`. Aucun provider n’est appelé et aucune capacité absente n’est inférée.
 
+## Intégrité du gate de release
+
+`promptops release` ne fait plus confiance à la seule présence d’un champ `artifact_sha`. Avant d’utiliser un dataset, un scorecard ou une régression, le chemin 0.3 :
+
+1. exige un SHA-256 hexadécimal canonique ;
+2. recalcule le SHA du contenu sans le champ de digest ;
+3. exige `schema_version=1.0` et le `kind` attendu ;
+4. applique au scorecard la validation complète utilisée par le routeur ;
+5. ne lit le booléen `passed` d’une régression qu’après validation de son hash et de son contrat minimal.
+
+Modifier par exemple `passed=false` en `passed=true` tout en conservant l’ancien SHA devient une entrée invalide et retourne `2`. Une vraie régression rouge, avec SHA cohérent, reste un gate rouge et retourne `3`. Les manifests de release réussis enregistrent `evidence_hashes_verified=true`.
+
+Cette vérification garantit l’intégrité du contenu local fourni au gate ; elle ne constitue pas une signature cryptographique de provenance ni une attestation distante.
+
 ## Portfolio consolidé
 
 Neuf dépôts spécialisés ont été importés avec leur historique sous `packages/`. Leur CI est désormais rejouée depuis la racine sur Python 3.11 et 3.12. Les dépôts sources restent publics et non archivés, avec un avis vers leur chemin canonique dans PromptOps.
@@ -49,10 +63,12 @@ Le fichier `portfolio-compatibility.v1.json` et `scripts/check_portfolio_compat.
 
 ## Ruptures intentionnelles
 
-Aucune rupture intentionnelle de l’API PromptBench ni des commandes PromptOps 0.2 n’est introduite. `route_decision` est un nouvel artefact PromptOps utilisant `schema_version=1.0` et son propre `artifact_sha`.
+Aucune rupture intentionnelle de l’API PromptBench ni des commandes PromptOps 0.2 n’est introduite. `route_decision` est un nouvel artefact PromptOps utilisant `schema_version=1.0` et son propre `artifact_sha`. Le manifest de release 0.3 ajoute `evidence_hashes_verified=true` lorsqu’il a validé toutes ses entrées.
 
 ## Rollback vers 0.2.0
 
 Le package racine peut revenir à `promptbench-replay==0.2.0`. Les rapports, scorecards, regressions, jurys, manifests de datasets et failure corpora 0.2 restent indépendants du nouveau routeur. Les artefacts `route_decision` peuvent être conservés comme preuves JSON mais ne sont pas requis par 0.2.0.
+
+Un rollback rétablit aussi l’ancien comportement du gate de release 0.2, qui ne fournit pas la même contre-preuve d’intégrité que 0.3. Aucun artefact existant n’a besoin d’être réécrit pour revenir à 0.2.
 
 Aucune migration de base de données, aucun état provider et aucun secret distant ne doivent être annulés. Les dépôts historiques restent également disponibles séparément, ce qui conserve un chemin de rollback du portfolio.
