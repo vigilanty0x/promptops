@@ -21,6 +21,7 @@ def write_fixture(
     policy_version: str = "0.5.0",
     tag: str = "v0.5.0",
     publish_enabled: bool = True,
+    wheel_count: int = 10,
     obsolete_notes: bool = False,
 ) -> None:
     (root / ".github" / "workflows").mkdir(parents=True)
@@ -39,6 +40,13 @@ def write_fixture(
         "prerelease": False,
         "idempotent": True,
         "publish_once_per_version": True,
+        "assets": {
+            "canonical_wheel_count": wheel_count,
+            "canonical_wheel_python_source": "3.11",
+            "include_sha256sums": True,
+            "include_sigstore_provenance_bundle": True,
+            "include_release_receipt": True,
+        },
     }
     (root / "release-policy.v1.json").write_text(
         json.dumps(policy), encoding="utf-8"
@@ -47,7 +55,11 @@ def write_fixture(
         f'[project]\nname = "promptbench-replay"\nversion = "{project_version}"\n',
         encoding="utf-8",
     )
-    notes = "Release candidate verification remains the full 20-job CI matrix." if obsolete_notes else "- Signed release evidence is verified before publication."
+    notes = (
+        "Release candidate verification remains the full 20-job CI matrix."
+        if obsolete_notes
+        else "- 40 wheel-producing jobs require signed SLSA provenance before publishing `v0.5.0`."
+    )
     (root / "CHANGELOG.md").write_text(
         f"# Changelog\n\n## {policy_version} - 2026-08-18\n\n{notes}\n\n## 0.4.0 - 2026-08-17\n\n- Older.\n",
         encoding="utf-8",
@@ -61,7 +73,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: test -f release-policy.v1.json
+      - uses: actions/download-artifact@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        with:
+          pattern: "*-wheel-py3.11"
+      - uses: actions/download-artifact@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        with:
+          name: wheel-provenance-${{ github.run_id }}
+      - run: test "$(find /tmp/release-wheels -maxdepth 1 -name '*.whl' | wc -l)" -eq 10
       - run: gh release create "$tag"
+      - run: gh release upload "$tag" /tmp/release-assets/*
       - run: gh release view "$tag"
 """,
         encoding="utf-8",
@@ -74,6 +94,7 @@ class ReleasePublishPolicyTests(unittest.TestCase):
         self.assertEqual(receipt.version, "0.5.0")
         self.assertEqual(receipt.tag, "v0.5.0")
         self.assertEqual(receipt.required_jobs, 3)
+        self.assertEqual(receipt.canonical_wheels, 10)
         self.assertGreater(receipt.release_note_lines, 0)
 
     def test_valid_fixture_is_accepted(self):
@@ -82,6 +103,7 @@ class ReleasePublishPolicyTests(unittest.TestCase):
             write_fixture(root)
             receipt = validate_release_publish_policy(root)
             self.assertEqual(receipt.version, "0.5.0")
+            self.assertEqual(receipt.canonical_wheels, 10)
 
     def test_project_version_drift_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -102,6 +124,13 @@ class ReleasePublishPolicyTests(unittest.TestCase):
             root = Path(tmp)
             write_fixture(root, publish_enabled=False)
             with self.assertRaisesRegex(ReleasePublishPolicyError, "publish_enabled"):
+                validate_release_publish_policy(root)
+
+    def test_release_asset_count_drift_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, wheel_count=9)
+            with self.assertRaisesRegex(ReleasePublishPolicyError, "assets"):
                 validate_release_publish_policy(root)
 
     def test_obsolete_ci_claim_is_rejected(self):
