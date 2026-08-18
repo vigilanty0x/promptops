@@ -77,7 +77,7 @@
       "treeMatch": true
     }
   ],
-  "state": "REHEARSAL_ONLY",
+  "state": "MERGED",
   "archiveGate": "BLOCKED",
-  "reason": "Tests, compatibility, release, redirect, consumer, rollback, and human gates are not all verified."
+  "reason": "Consolidation and package compatibility are verified; source repository redirects and explicit human archive approval are not yet complete."
 }
