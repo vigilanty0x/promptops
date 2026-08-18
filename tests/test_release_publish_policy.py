@@ -111,7 +111,6 @@ class ReleasePublishPolicyTests(unittest.TestCase):
 
     def test_valid_disabled_fixture_is_accepted(self):
         with tempfile.TemporaryDirectory() as tmp:
-            receipt = validate_release_publish_policy(Path(tmp)) if False else None
             root = Path(tmp)
             write_fixture(root)
             receipt = validate_release_publish_policy(root)
