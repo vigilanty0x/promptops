@@ -28,7 +28,15 @@ jobs:
       - run: promptbench validate --suite examples/suite.json
       - run: promptbench probe --level functional
       - run: promptbench demo --workspace /tmp/promptbench-demo
-      - run: python -m pip wheel . --no-deps --wheel-dir /tmp/wheel
+      - name: Build root wheel
+        run: python -m pip wheel . --no-deps --wheel-dir /tmp/wheel
+      - name: Upload root wheel evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: promptbench-replay-wheel-py${{ matrix.python-version }}
+          path: /tmp/wheel/*.whl
+          if-no-files-found: error
+          retention-days: 14
 
   verify-consolidated-package:
     runs-on: ubuntu-latest
@@ -59,3 +67,10 @@ jobs:
         run: python -m unittest discover -s "packages/${{ matrix.package }}/tests" -v
       - name: Build package wheel
         run: python -m pip wheel "packages/${{ matrix.package }}" --no-deps --wheel-dir /tmp/wheel
+      - name: Upload package wheel evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.package }}-wheel-py${{ matrix.python-version }}
+          path: /tmp/wheel/*.whl
+          if-no-files-found: error
+          retention-days: 14
