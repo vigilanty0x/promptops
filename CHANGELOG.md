@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.1 - 2026-08-18
+
+- Fix release identity after post-`v0.5.0` CI, provenance, release-verification, and governance hardening changed the root wheel while the source tree still declared `0.5.0`.
+- Bump the root `promptbench-replay` package and runtime version to `0.5.1` so newly built bytes cannot masquerade as the already-published immutable `0.5.0` wheel.
+- Separate the next/current publication authorization (`release-policy.v1.json`) from the latest independently verified immutable publication (`published-release.v1.json`).
+- Keep the read-only published-release verifier pinned to the actually published release while a newer candidate is still under review, eliminating the candidate/publication race.
+- Make the governance proof follow `published-release.v1.json` rather than a future candidate policy, preserving immutable historical evidence while the next release is prepared.
+- Preserve the complete **40 wheel-producing jobs** across CPython 3.11–3.14, deterministic double builds, clean-venv checks, exact build backend pin, and signed aggregation gate.
+- Require GitHub/Sigstore **SLSA provenance** for the ten canonical wheels before publication and retain the independent read-only verification of the previously published release throughout the candidate PR.
+- Authorize one-time publication of GitHub Release `v0.5.1` only from the owner `main` push after the full producer matrix and signed-provenance job succeed.
+- Preserve immutable 13-asset publication: ten canonical wheels, `SHA256SUMS`, deterministic provenance ZIP, and `RELEASE-RECEIPT.json`, followed by immediate public readback and SHA-256 verification.
+- Keep branch protection and historical-repository archival outside the release claim: they remain separate live server/human governance gates.
+
+Release candidate verification is the 40 wheel-producing jobs plus signed SLSA provenance aggregation/verification. During the `0.5.1` PR, the separate read-only workflow continues to verify the already-published `v0.5.0`; after publication, a follow-up verified record promotes `v0.5.1` to the latest published release.
+
 ## 0.5.0 - 2026-08-18
 
 - Add explicit `promptops verify-bundle` release-evidence linkage verification.
