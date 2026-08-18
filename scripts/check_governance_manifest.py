@@ -1,9 +1,10 @@
 """Validate the machine-readable external governance blocker register.
 
 This gate validates repository-owned truthfulness. Live branch protection remains
-a server-side observation. Signed provenance may be recorded as verified only
-when the register contains executed CI evidence; published main provenance must
-also agree with the explicit release policy.
+a server-side observation and the register deliberately does not persist a
+"current main SHA" because merging the register would make that value obsolete.
+Signed provenance may be recorded as verified only when the register contains
+executed CI evidence; published main provenance must agree with the release policy.
 """
 
 from __future__ import annotations
@@ -207,13 +208,14 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
     portfolio = _load(root / "portfolio-compatibility.v1.json")
     release_policy = _load(root / "release-policy.v1.json")
 
-    if register.get("schema_version") != "1.0":
-        raise GovernanceManifestError("governance schema_version must be 1.0")
+    if register.get("schema_version") != "1.1":
+        raise GovernanceManifestError("governance schema_version must be 1.1")
     if register.get("repository") != "vigilanty0x/promptops":
         raise GovernanceManifestError("governance repository identity is invalid")
-    observed_sha = register.get("observed_main_sha")
-    if not isinstance(observed_sha, str) or _SHA40.fullmatch(observed_sha) is None:
-        raise GovernanceManifestError("observed_main_sha must be a lowercase 40-hex commit SHA")
+    if "observed_main_sha" in register:
+        raise GovernanceManifestError(
+            "observed_main_sha must not be persisted: merging a live-SHA claim makes it self-obsoleting"
+        )
 
     gates = register.get("gates")
     if not isinstance(gates, dict) or set(gates) != {
@@ -226,6 +228,9 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
     branch = gates["branch_protection"]
     if not isinstance(branch, dict) or branch.get("status") != "BLOCKED_TOOLING":
         raise GovernanceManifestError("branch protection must remain BLOCKED_TOOLING until live closure proof")
+    if branch.get("observed_ref") != "main":
+        raise GovernanceManifestError("branch protection observed_ref must be main")
+    _require_nonempty_text(branch.get("observation_semantics"), "branch_protection.observation_semantics")
     _require_bool(branch.get("observed_protected"), "branch_protection.observed_protected", False)
     _require_bool(branch.get("target_protected"), "branch_protection.target_protected", True)
     _require_bool(
@@ -276,6 +281,7 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
     for field in (
         "blocked_is_not_done",
         "server_state_is_not_inferred_from_repository_files",
+        "live_main_sha_is_not_persisted",
         "human_approval_is_never_synthesized",
         "tooling_limits_are_reported_instead_of_bypassed",
     ):
