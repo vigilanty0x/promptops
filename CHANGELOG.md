@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 - 2026-08-18
+
+- Add generic `promptops verify` support for all seven PromptOps artifact kinds: scorecards, regressions, failure corpora, jury consensus, dataset manifests, route decisions, and release manifests.
+- Recompute each stored artifact SHA before applying kind-specific contract invariants.
+- Reject internally contradictory artifacts even when a caller recomputes a fresh matching SHA after tampering.
+- Reconstruct route eligibility and rejection reasons from the stored routing policy and candidate metrics instead of trusting stored routing claims.
+- Return verification receipts that distinguish `integrity=verified` and `contract=verified` from `provenance=not-verified`.
+- Preserve verification compatibility for pre-0.3 release manifests without retroactively inventing source-evidence integrity: absent evidence is reported as `not-recorded`, explicit `true` as `verified`, and explicit `false` remains invalid.
+- Keep the full 20-job CI matrix as the release gate: root PromptOps on Python 3.11/3.12 plus all nine consolidated packages on both versions.
+
+Release candidate verification includes editable install, static checks, portfolio compatibility gate, full unit tests, suite validation, functional counter-proof, demo, root wheel build, and install/check/test/wheel for every consolidated package.
+
 ## 0.3.0 - 2026-08-18
 
 - Add deterministic offline scorecard routing with explicit quality, latency, cost, allowlist, and fallback constraints.
