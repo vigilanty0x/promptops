@@ -1,8 +1,10 @@
-"""Validate the explicit GitHub release publication policy.
+"""Validate the explicit PromptOps candidate publication policy.
 
-The policy intentionally separates a prepared package version from permission to
-publish a GitHub Release. A future version bump therefore cannot silently reuse
-an old automatic publication decision.
+A prepared package version is not permission to publish it.  The policy can be
+``publish_enabled=false`` while a candidate is under review.  In that state the
+CI workflow must contain no release publisher at all.  Re-enabling publication
+therefore requires a reviewed policy + workflow change instead of inheriting an
+old release decision.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ PYPROJECT_PATH = ROOT / "pyproject.toml"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 EXPECTED_REPOSITORY = "vigilanty0x/promptops"
+EXPECTED_DISTRIBUTION = "promptops-replay"
 EXPECTED_REQUIRES = ["verify", "verify-consolidated-package", "attest-wheels"]
 EXPECTED_ASSETS = {
     "canonical_wheel_count": 10,
@@ -38,6 +41,7 @@ class ReleasePublishPolicyError(ValueError):
 class ReleasePublishReceipt:
     version: str
     tag: str
+    publish_enabled: bool
     required_jobs: int
     canonical_wheels: int
     release_note_lines: int
@@ -80,6 +84,42 @@ def _release_notes(changelog: str, version: str) -> list[str]:
     return notes
 
 
+def _verify_workflow_contract(workflow: str, *, publish_enabled: bool) -> None:
+    if publish_enabled:
+        required_workflow_fragments = (
+            "publish-release:",
+            "needs: [verify, verify-consolidated-package, attest-wheels]",
+            "github.event_name == 'push'",
+            "github.ref == 'refs/heads/main'",
+            "github.actor == github.repository_owner",
+            "release-policy.v1.json",
+            'pattern: "*-wheel-py3.11"',
+            'name: wheel-provenance-${{ github.run_id }}',
+            "gh release create",
+            "gh release view",
+            "gh release download",
+            "RELEASE-RECEIPT.json",
+            'find /tmp/release-wheels -maxdepth 1 -name \'*.whl\' | wc -l',
+        )
+        for fragment in required_workflow_fragments:
+            if fragment not in workflow:
+                raise ReleasePublishPolicyError(
+                    f"CI release publisher is missing required fragment {fragment!r}"
+                )
+        return
+
+    forbidden = (
+        "publish-release:",
+        "gh release create",
+        "contents: write",
+    )
+    for fragment in forbidden:
+        if fragment in workflow:
+            raise ReleasePublishPolicyError(
+                f"publication is disabled but CI still contains release authority {fragment!r}"
+            )
+
+
 def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
     root = Path(root)
     policy = _load_json(root / POLICY_PATH.name)
@@ -97,14 +137,17 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         raise ReleasePublishPolicyError("version must be stable SemVer X.Y.Z")
     tag = policy.get("tag")
     _require(tag, f"v{version}", "tag")
+    publish_enabled = policy.get("publish_enabled")
+    if not isinstance(publish_enabled, bool):
+        raise ReleasePublishPolicyError("publish_enabled must be boolean")
 
     project = pyproject.get("project")
     if not isinstance(project, dict):
         raise ReleasePublishPolicyError("pyproject.toml [project] is missing")
+    _require(project.get("name"), EXPECTED_DISTRIBUTION, "pyproject project.name")
     _require(project.get("version"), version, "pyproject project.version")
 
     exact = {
-        "publish_enabled": True,
         "publish_event": "push",
         "publish_branch": "main",
         "publisher": "repository-owner",
@@ -128,33 +171,19 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
     for phrase in ("40 wheel-producing jobs", "SLSA provenance", f"`{tag}`"):
         if phrase not in note_text:
             raise ReleasePublishPolicyError(
-                f"current release notes must describe final release evidence: missing {phrase!r}"
+                f"current release notes must describe candidate evidence: missing {phrase!r}"
             )
+    if not publish_enabled and "publication disabled" not in note_text.lower():
+        raise ReleasePublishPolicyError(
+            "disabled candidate release notes must explicitly say publication disabled"
+        )
 
-    required_workflow_fragments = (
-        "publish-release:",
-        "needs: [verify, verify-consolidated-package, attest-wheels]",
-        "github.event_name == 'push'",
-        "github.ref == 'refs/heads/main'",
-        "github.actor == github.repository_owner",
-        "release-policy.v1.json",
-        'pattern: "*-wheel-py3.11"',
-        'name: wheel-provenance-${{ github.run_id }}',
-        "gh release create",
-        "gh release view",
-        "gh release download",
-        "RELEASE-RECEIPT.json",
-        'find /tmp/release-wheels -maxdepth 1 -name \'*.whl\' | wc -l',
-    )
-    for fragment in required_workflow_fragments:
-        if fragment not in workflow:
-            raise ReleasePublishPolicyError(
-                f"CI release publisher is missing required fragment {fragment!r}"
-            )
+    _verify_workflow_contract(workflow, publish_enabled=publish_enabled)
 
     return ReleasePublishReceipt(
         version=version,
         tag=tag,
+        publish_enabled=publish_enabled,
         required_jobs=len(EXPECTED_REQUIRES),
         canonical_wheels=EXPECTED_ASSETS["canonical_wheel_count"],
         release_note_lines=len(notes),
@@ -168,7 +197,7 @@ def main() -> int:
         raise SystemExit(f"release publish policy gate: {exc}") from exc
     print(
         "release publish policy verified: "
-        f"version={receipt.version} tag={receipt.tag} "
+        f"version={receipt.version} tag={receipt.tag} publish_enabled={str(receipt.publish_enabled).lower()} "
         f"required_jobs={receipt.required_jobs} canonical_wheels={receipt.canonical_wheels} "
         f"release_note_lines={receipt.release_note_lines}"
     )

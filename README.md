@@ -1,27 +1,36 @@
-# PromptBench
+# PromptOps
 
-PromptBench is a deterministic, offline harness for comparing prompt/model candidates on the same versioned scenarios and limits. It reports pass rate, pass@1, score variance, tokens, latency, cost, recovery, and bounded diffs while preserving failures instead of showing only winning runs.
+PromptOps is a deterministic, offline quality-operations toolkit for comparing prompt/model candidates, preserving failures, producing evidence-bound scorecards and regressions, routing only from verified local evidence, and assembling reproducible release decisions.
 
-The replay samples are versioned. That makes every example reproducible without a provider account, API key, network call, cache, or wall-clock dependency.
+The proven PromptBench replay engine remains inside the product as a compatibility layer. New integrations should use **PromptOps** as the product identity.
+
+## Identity contract
+
+The prepared 0.6 candidate uses these public identities:
+
+- repository and product: `vigilanty0x/promptops` / **PromptOps**;
+- candidate distribution: `promptops-replay`;
+- canonical Python namespace: `import promptops`;
+- canonical operations CLI: `promptops`;
+- legacy `promptbench` Python namespace and `promptbench` CLI: retained for compatibility with existing benchmark/replay consumers.
+
+The two Python namespaces report the same package version. The legacy interfaces are not scheduled for removal by 0.6.
+
+**0.6.0 is PREPARED, not published.** `release-policy.v1.json` records `publish_enabled=false`, and normal CI contains no GitHub Release publisher for this candidate. The latest published release remains `v0.5.0`, independently pinned by `published-release.v1.json` and continuously re-verified by the read-only published-release workflow.
+
+See [Migration to 0.6](MIGRATION-0.6.md) for compatibility, publication gates, and rollback.
 
 ## Quick start
 
+Install the current source candidate locally:
+
 ```bash
 python -m pip install -e .
-promptbench validate --suite examples/suite.json
-promptbench run --suite examples/suite.json --output /tmp/promptbench-report.json
-promptbench verify --report /tmp/promptbench-report.json
+promptops --help
+python -m promptops --help
 ```
 
-Run the fully synthetic demonstration:
-
-```bash
-promptbench demo --workspace /tmp/promptbench-demo
-```
-
-## PromptOps
-
-The repository includes an offline PromptOps layer on top of verified PromptBench reports. It adds content-addressed scorecards, regression gates, deterministic multi-report jury consensus, versioned dataset manifests, bounded failure corpora, deterministic scorecard routing, stored-artifact verification, explicit release-bundle verification, and release evidence manifests.
+PromptOps consumes verified local JSON artifacts and never needs a provider account, API key, network call, cache, or wall-clock dependency for its deterministic operations:
 
 ```bash
 promptops scorecard report.json -o scorecard.json
@@ -32,8 +41,29 @@ promptops datasets suite-v1.json suite-v2.json -o datasets.json
 promptops verify scorecard.json --kind scorecard
 promptops verify-bundle release.json --artifact datasets.json --artifact scorecard.json --artifact regression.json
 promptops route scorecard.json --min-pass-rate 0.9 --max-latency-ms 500 --max-cost-microunits 10000 --fallbacks 1 -o route.json
-promptops release --version 0.5.0 --dataset datasets.json --scorecard scorecard.json --regression regression.json -o release.json
+promptops release --version 0.6.0 --dataset datasets.json --scorecard scorecard.json --regression regression.json -o release.json
 ```
+
+### Benchmark/replay compatibility
+
+The deterministic benchmark engine remains available through the legacy CLI while the identity migration preserves existing automation:
+
+```bash
+promptbench validate --suite examples/suite.json
+promptbench run --suite examples/suite.json --output /tmp/promptbench-report.json
+promptbench verify --report /tmp/promptbench-report.json
+promptbench demo --workspace /tmp/promptbench-demo
+```
+
+Existing `import promptbench` callers remain supported. New Python integrations can use:
+
+```python
+import promptops
+
+print(promptops.__version__)
+```
+
+## Evidence semantics
 
 `promptops verify` recomputes the stored artifact SHA and checks kind-specific internal invariants for `scorecard`, `regression`, `failure_corpus`, `jury_consensus`, `dataset_manifest`, `route_decision`, and `release_manifest`. A successful receipt reports integrity and contract verification while explicitly keeping `provenance=not-verified`; it does not claim a signature or remote attestation. For historical pre-0.3 release manifests that never recorded the later source-evidence-integrity field, the receipt reports `source_evidence_integrity=not-recorded` instead of inventing a newer guarantee.
 
@@ -47,23 +77,27 @@ The PromptOps layer does not call providers. It consumes versioned local JSON ar
 
 ## Python support
 
-The root package and all nine consolidated packages declare `requires-python >=3.11`. The current stable support gate runs the full root and package matrix on **CPython 3.11, 3.12, 3.13, and 3.14**. Root package classifiers advertise those four tested series. Future or pre-release Python series beyond 3.14 are not part of the CI guarantee until they are added to the explicit support contract and pass the same gates.
+The root package and all nine consolidated packages declare `requires-python >=3.11`. The current support gate runs the full root and package matrix on **CPython 3.11, 3.12, 3.13, and 3.14**. Root package classifiers advertise those four tested series. Future or pre-release Python series beyond 3.14 are not part of the CI guarantee until they are added to the explicit support contract and pass the same gates.
 
 ## Build reproducibility
 
 All ten PEP 517 projects use the same exact build backend contract: `setuptools==83.0.0` with `setuptools.build_meta`. The pin is intentional: CI reproducibility must not silently change because a future setuptools release satisfies an open-ended minimum version. Every matrix job performs two independent wheel builds under a fixed `SOURCE_DATE_EPOCH` and requires identical SHA-256 output before clean-venv installation and evidence retention.
 
-## Signed wheel provenance
+The root wheel must install as `promptops-replay`, expose both `promptops` and `promptbench` Python namespaces, expose both CLIs, and report one consistent version across all four surfaces.
+
+## Candidate provenance
 
 After all **40** root/historical Python-matrix jobs succeed, an owner/same-repository guarded provenance job downloads the verified wheel artifacts, requires the four Python copies of each package wheel to be byte-identical, and reduces them to exactly **10 canonical wheel subjects**. Those wheels are signed with GitHub/Sigstore SLSA provenance.
 
 The CI does not trust the attestation simply because it was created. Before retaining provenance evidence, it runs `gh attestation verify` for every canonical wheel and constrains verification to the expected repository, signer workflow, source ref, source commit digest, and GitHub-hosted runner policy. External fork PRs cannot execute the elevated attestation job. The Sigstore bundle, canonical `SHA256SUMS`, and a machine-readable provenance receipt are retained for 30 days.
 
-The mechanism was first executed end-to-end on owner same-repository PR #25: ten canonical wheels were attested, all ten passed strict `gh attestation verify`, and the retained Sigstore bundle was downloaded and inspected.
+Attestation is evidence, not publication authorization. For the prepared 0.6 candidate, `publish_enabled=false`; signed candidate wheels therefore cannot create a release by themselves.
+
+The provenance mechanism was first executed end-to-end on owner same-repository PR #25: ten canonical wheels were attested, all ten passed strict `gh attestation verify`, and the retained Sigstore bundle was downloaded and inspected.
 
 ## Published `v0.5.0` release
 
-The prepared `0.5.0` source is now published as GitHub tag **`v0.5.0`**. The tag is bound to source commit `c8c6d133e86a119338edbc7b4e9142ce1c525fb5`, which was signature-verified by the independent release-verification workflow.
+The currently published stable release is GitHub tag **`v0.5.0`**. The tag is bound to source commit `c8c6d133e86a119338edbc7b4e9142ce1c525fb5`, which was signature-verified by the independent release-verification workflow.
 
 The release contains exactly **13 immutable uploaded assets**:
 
@@ -72,7 +106,7 @@ The release contains exactly **13 immutable uploaded assets**:
 - `promptops-0.5.0-provenance.zip` containing the published GitHub/Sigstore SLSA evidence;
 - `RELEASE-RECEIPT.json` binding repository, version, tag, source commit/ref, workflow run, wheel digests, checksum digest, and provenance-ZIP digest.
 
-Publication is controlled by `release-policy.v1.json`: only the explicitly authorized version/tag can be created, only after the full 40-producer matrix and `attest-wheels` succeed, and the write permission is confined to the owner-only `publish-release` job. If the release already exists, automation does not replace its assets.
+That historical publication used the then-authorized 0.5 policy. The prepared 0.6 policy is deliberately separate and disabled; it does not retroactively redefine the published 0.5 release.
 
 Publication is independently checked by the read-only `.github/workflows/release-verify.yml` workflow. Its first executed proof, run `32094998702`, downloaded the live `v0.5.0` release, verified all 13 assets and the tag target, and reported:
 
@@ -80,7 +114,7 @@ Publication is independently checked by the read-only `.github/workflows/release
 
 It then extracted the provenance ZIP and successfully re-ran `gh attestation verify` for **all ten published wheels** using `refs/heads/main`, the published source digest, the expected signer workflow, and the no-self-hosted-runner policy. That read-only verifier remains part of CI, so later tag drift, missing/replaced assets, checksum drift, receipt drift, or broken provenance makes the published-release verification workflow fail.
 
-See [Release publication and verification](docs/RELEASE-PUBLICATION.md), [GitHub administration gates](docs/GITHUB-ADMIN-GATES.md), and `repository-governance.v1.json` for the publication contract and recorded proofs.
+See [Release publication and verification](docs/RELEASE-PUBLICATION.md), [GitHub administration gates](docs/GITHUB-ADMIN-GATES.md), and `repository-governance.v1.json` for the historical publication contract and recorded proofs.
 
 ## Fair comparison contract
 
@@ -103,6 +137,8 @@ Judges return pass/fail, a numeric score, a reason, and a bounded diff. They nev
 
 ## Probes
 
+The legacy compatibility CLI retains liveness, readiness and functional probes:
+
 ```bash
 promptbench probe --level liveness
 promptbench probe --level readiness
@@ -113,7 +149,7 @@ The functional probe contains a control that must pass and a counter-example tha
 
 ## CI gate
 
-`--minimum-pass-rate` returns exit code 3 when the best candidate is below a chosen threshold:
+The benchmark/replay compatibility engine preserves its existing threshold semantics: `--minimum-pass-rate` returns exit code 3 when the best candidate is below a chosen threshold.
 
 ```bash
 promptbench run --suite examples/suite.json --minimum-pass-rate 0.8
@@ -133,20 +169,26 @@ python scripts/check_workflow_security.py
 python scripts/check_governance_manifest.py
 python scripts/check_portfolio_compat.py
 PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m promptops --help
 PYTHONPATH=src python -m promptbench probe --level functional
 python -m compileall -q src tests scripts
 ```
 
-`check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. `check_release_publish_policy.py` binds `0.5.0` to the explicitly authorized `v0.5.0` GitHub publication contract and immutable release asset policy. `check_python_support.py` binds the root and nine historical `requires-python` declarations to the root classifiers and both explicit CI Python matrices. `check_build_backend.py` requires every root/historical `pyproject.toml` named by the portfolio manifest to use exactly `setuptools==83.0.0` and `setuptools.build_meta`. `check_workflow_security.py` keeps workflow-wide permissions read-only and permits elevated OIDC/attestation or release-write permissions only in their exact guarded jobs; it also enforces bounded timeouts, immutable 40-hex action pins, non-persistent checkout credentials, and required job dependencies. `check_governance_manifest.py` requires the executed PR provenance and published-main release proofs to remain recorded while preserving branch protection and historical archival as blocked until their live server/human closure proofs exist. `verify_published_release.py` is the offline half of the networked read-only release-verification workflow and validates the exact published asset/hash/provenance receipt contract. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
+`check_release_metadata.py` fails closed when canonical PromptOps identity or version drifts between `pyproject.toml`, `promptops.__version__`, legacy `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or README identity/release surfaces.
 
-CI repeats the complete root and consolidated-package gates on Python 3.11 through 3.14: **4 root jobs + 36 historical-package jobs = 40 wheel-producer jobs**, followed by the signed-provenance job for guarded owner/same-repository runs. Separately, the read-only published-release workflow downloads and verifies the immutable `v0.5.0` evidence. Every producer builds its wheel twice under a fixed `SOURCE_DATE_EPOCH` and requires the two SHA-256 digests to be identical before continuing. The verified wheel is then installed into a fresh virtual environment and only after successful smoke verification uploaded as a uniquely named GitHub Actions artifact retained for 14 days. Historical wheel metadata/version/CLI checks are resolved from `portfolio-compatibility.v1.json`; the root wheel checks installed metadata against `promptbench.__version__` and runs a liveness probe. A backend-drifted, non-reproducible, broken, mismatched, unsigned-at-provenance-stage, missing, or post-publication-corrupted wheel therefore makes the corresponding evidence chain fail.
+`check_release_publish_policy.py` separates candidate preparation from publication authority. For `0.6.0`, `publish_enabled=false` is valid only when normal CI contains no `publish-release` job, no release `contents: write`, and no `gh release create` path.
+
+`check_python_support.py` binds the root and nine historical `requires-python` declarations to the root classifiers and both explicit CI Python matrices. `check_build_backend.py` requires every root/historical `pyproject.toml` named by the portfolio manifest to use exactly `setuptools==83.0.0` and `setuptools.build_meta`. `check_workflow_security.py` keeps workflow-wide permissions read-only and permits elevated OIDC/attestation permissions only in the guarded attestation job while publication is disabled; it also enforces bounded timeouts, immutable 40-hex action pins, non-persistent checkout credentials, and required job dependencies. `check_governance_manifest.py` requires the executed PR provenance and the independently pinned published-main release proofs to remain recorded while preserving branch protection and historical archival as blocked until their live server/human closure proofs exist. `verify_published_release.py` is the offline half of the networked read-only release-verification workflow and validates the exact published asset/hash/provenance receipt contract. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
+
+CI repeats the complete root and consolidated-package gates on Python 3.11 through 3.14: **4 root jobs + 36 historical-package jobs = 40 wheel-producing jobs**, followed by the signed-provenance job for guarded owner/same-repository runs. Separately, the read-only published-release workflow downloads and verifies the immutable `v0.5.0` evidence. Every producer builds its wheel twice under a fixed `SOURCE_DATE_EPOCH` and requires the two SHA-256 digests to be identical before continuing. The verified wheel is then installed into a fresh virtual environment and only after successful smoke verification uploaded as a uniquely named GitHub Actions artifact retained for 14 days. Historical wheel metadata/version/CLI checks are resolved from `portfolio-compatibility.v1.json`; the root wheel checks installed metadata against `promptops-replay`, then proves canonical `promptops` and legacy `promptbench` imports/CLIs agree on the version. A backend-drifted, non-reproducible, broken, mismatched, unsigned-at-provenance-stage, or identity-inconsistent wheel therefore makes the corresponding evidence chain fail.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Suite and report schemas](docs/SCHEMA.md)
 - [PromptOps evidence contracts](docs/PROMPTOPS.md)
-- [Migration to 0.5](MIGRATION-0.5.md)
+- [Migration to 0.6](MIGRATION-0.6.md)
+- [Migration from 0.4 to published 0.5](MIGRATION-0.5.md)
 - [Portfolio compatibility/archive gate](docs/PORTFOLIO-COMPATIBILITY-AND-ARCHIVE-GATE.md)
 - [Release publication and verification](docs/RELEASE-PUBLICATION.md)
 - [GitHub administration gates](docs/GITHUB-ADMIN-GATES.md)

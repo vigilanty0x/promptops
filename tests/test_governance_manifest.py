@@ -19,7 +19,7 @@ def copy_inputs(target: Path) -> None:
     for name in (
         "repository-governance.v1.json",
         "portfolio-compatibility.v1.json",
-        "release-policy.v1.json",
+        "published-release.v1.json",
     ):
         shutil.copy2(REPO_ROOT / name, target / name)
 
@@ -57,6 +57,29 @@ class GovernanceManifestTests(unittest.TestCase):
             value["schema_version"] = "1.0"
             path.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(GovernanceManifestError, "schema_version must be 1.1"):
+                validate_governance_manifest(root)
+
+    def test_candidate_policy_cannot_redefine_published_release(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            published = root / "published-release.v1.json"
+            value = json.loads(published.read_text(encoding="utf-8"))
+            value["version"] = "0.6.0"
+            value["tag"] = "v0.6.0"
+            published.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "version/tag must match"):
+                validate_governance_manifest(root)
+
+    def test_published_source_digest_drift_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            published = root / "published-release.v1.json"
+            value = json.loads(published.read_text(encoding="utf-8"))
+            value["source_digest"] = "a" * 40
+            published.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "source_digest must match"):
                 validate_governance_manifest(root)
 
 

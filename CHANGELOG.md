@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 - 2026-08-18
+
+- Make **PromptOps** the canonical product, package and README identity while retaining the proven PromptBench replay engine as a compatibility layer.
+- Rename the candidate root distribution from `promptbench-replay` to `promptops-replay`; add the canonical `promptops` Python namespace and `python -m promptops` entry point.
+- Preserve legacy `import promptbench` and the `promptbench` CLI at the same `0.6.0` version so existing benchmark/replay consumers do not break during the identity transition.
+- Keep the nine consolidated package distributions, CLIs and versions unchanged; the identity migration applies only to the root PromptOps distribution.
+- Separate the prepared `v0.6.0` candidate policy from the independently verified published `v0.5.0` record.
+- Mark `v0.6.0` **publication disabled** with `publish_enabled=false`; a disabled candidate must have no `publish-release` job, no `contents: write` release authority and no `gh release create` path in normal CI.
+- Continue the 40 wheel-producing jobs across CPython 3.11, 3.12, 3.13 and 3.14, deterministic double builds, clean-venv installed-wheel smoke tests, and SLSA provenance generation/verification for the candidate wheels.
+- Add fail-closed identity gates that require README, distribution metadata, canonical/legacy Python namespaces, CLIs, changelog, migration guide and rollback story to agree.
+- Add explicit migration and Rollback guidance to the verified published `v0.5.0` / `promptbench-replay` artifacts.
+
+`v0.6.0` is a PREPARED candidate only. The 40 wheel-producing jobs and SLSA provenance can establish build evidence, but they do not authorize publication. Publication remains disabled until a separate reviewed policy/workflow change restores an owner/main publisher and the resulting release is independently read back and verified.
+
 ## 0.5.0 - 2026-08-18
 
 - Add explicit `promptops verify-bundle` release-evidence linkage verification.

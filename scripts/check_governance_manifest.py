@@ -4,7 +4,8 @@ This gate validates repository-owned truthfulness. Live branch protection remain
 a server-side observation and the register deliberately does not persist a
 "current main SHA" because merging the register would make that value obsolete.
 Signed provenance may be recorded as verified only when the register contains
-executed CI evidence; published main provenance must agree with the release policy.
+executed CI evidence; published main provenance must agree with the independently
+pinned ``published-release.v1.json`` record, not the next candidate policy.
 """
 
 from __future__ import annotations
@@ -118,7 +119,7 @@ def _verify_owner_pr_proof(proof: object) -> None:
     _require_bool(proof.get("verified_with_gh_cli"), "artifact_attestation.verified_run.verified_with_gh_cli", True)
 
 
-def _verify_main_release_proof(proof: object, release_policy: dict) -> str:
+def _verify_main_release_proof(proof: object, published_record: dict) -> str:
     if not isinstance(proof, dict):
         raise GovernanceManifestError("artifact_attestation.main_release_proof must be an object")
     _require_positive_int(
@@ -133,18 +134,23 @@ def _verify_main_release_proof(proof: object, release_policy: dict) -> str:
         proof.get("verification_pull_request"),
         "artifact_attestation.main_release_proof.verification_pull_request",
     )
+    if published_record.get("schema_version") != "1.0":
+        raise GovernanceManifestError("published-release.v1.json schema_version must be 1.0")
+    if published_record.get("repository") != "vigilanty0x/promptops":
+        raise GovernanceManifestError("published release record repository is invalid")
+    if published_record.get("status") != "VERIFIED_PUBLISHED":
+        raise GovernanceManifestError("published release record must be VERIFIED_PUBLISHED")
     version = _require_nonempty_text(proof.get("published_version"), "artifact_attestation.main_release_proof.published_version")
     tag = _require_nonempty_text(proof.get("published_tag"), "artifact_attestation.main_release_proof.published_tag")
-    if version != release_policy.get("version") or tag != release_policy.get("tag"):
-        raise GovernanceManifestError("main release proof version/tag must match release-policy.v1.json")
+    if version != published_record.get("version") or tag != published_record.get("tag"):
+        raise GovernanceManifestError("main release proof version/tag must match published-release.v1.json")
     if proof.get("source_ref") != "refs/heads/main":
         raise GovernanceManifestError("main release proof source_ref must be refs/heads/main")
     digest = proof.get("source_digest")
     if not isinstance(digest, str) or _SHA40.fullmatch(digest) is None:
         raise GovernanceManifestError("main release proof source_digest must be 40-hex")
-    assets = release_policy.get("assets")
-    if not isinstance(assets, dict) or assets.get("canonical_wheel_count") != 10:
-        raise GovernanceManifestError("release policy must require ten canonical wheels")
+    if digest != published_record.get("source_digest"):
+        raise GovernanceManifestError("main release proof source_digest must match published-release.v1.json")
     if proof.get("canonical_subject_count") != 10 or proof.get("release_asset_count") != 13:
         raise GovernanceManifestError("main release proof must record 10 subjects and 13 assets")
     attestation_id = proof.get("attestation_id")
@@ -162,7 +168,7 @@ def _verify_main_release_proof(proof: object, release_policy: dict) -> str:
     return f"{version}@{tag}"
 
 
-def _verify_attestation(attestation: object, release_policy: dict) -> tuple[str, str]:
+def _verify_attestation(attestation: object, published_record: dict) -> tuple[str, str]:
     if not isinstance(attestation, dict):
         raise GovernanceManifestError("artifact_attestation must be an object")
     expected_status = "IMPLEMENTED_VERIFIED_PR_AND_MAIN_RELEASE"
@@ -197,7 +203,7 @@ def _verify_attestation(attestation: object, release_policy: dict) -> tuple[str,
         _require_bool(strict.get(field), f"artifact_attestation.strict_verification.{field}", True)
 
     _verify_owner_pr_proof(attestation.get("verified_run"))
-    published = _verify_main_release_proof(attestation.get("main_release_proof"), release_policy)
+    published = _verify_main_release_proof(attestation.get("main_release_proof"), published_record)
     _require_nonempty_text(attestation.get("note"), "artifact_attestation.note")
     return expected_status, published
 
@@ -206,7 +212,7 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
     root = Path(root)
     register = _load(root / "repository-governance.v1.json")
     portfolio = _load(root / "portfolio-compatibility.v1.json")
-    release_policy = _load(root / "release-policy.v1.json")
+    published_record = _load(root / "published-release.v1.json")
 
     if register.get("schema_version") != "1.1":
         raise GovernanceManifestError("governance schema_version must be 1.1")
@@ -251,7 +257,7 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
         _require_bool(desired.get(field), f"branch_protection.desired.{field}", True)
 
     attestation_status, published_release = _verify_attestation(
-        gates["artifact_attestation"], release_policy
+        gates["artifact_attestation"], published_record
     )
 
     package_count, approval_count, ready_count = _portfolio_counts(portfolio)

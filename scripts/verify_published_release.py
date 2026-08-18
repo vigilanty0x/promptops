@@ -1,9 +1,10 @@
-"""Verify downloaded GitHub Release assets against the release policy and receipt.
+"""Verify downloaded GitHub Release assets against the pinned published record.
 
 Cryptographic attestation verification is deliberately performed by the CI job
 with `gh attestation verify`; this module validates the downloaded release
 metadata, immutable asset set, hashes, and embedded provenance receipt using
-only the Python standard library.
+only the Python standard library.  The published record is intentionally
+separate from the next candidate's publication policy.
 """
 
 from __future__ import annotations
@@ -60,17 +61,19 @@ def validate_published_release(
     assets_dir = Path(assets_dir)
     if not assets_dir.is_dir():
         raise PublishedReleaseError("release assets directory is missing")
-    policy = _load_json(Path(policy_path), "release policy")
+    policy = _load_json(Path(policy_path), "published release record")
     view = _load_json(Path(view_json), "release view")
     receipt_path = assets_dir / "RELEASE-RECEIPT.json"
     if not receipt_path.is_file():
         raise PublishedReleaseError("RELEASE-RECEIPT.json is missing")
     receipt = _load_json(receipt_path, "release receipt")
 
+    if policy.get("repository", EXPECTED_REPOSITORY) != EXPECTED_REPOSITORY:
+        raise PublishedReleaseError("published release record repository mismatch")
     version = policy.get("version")
     tag = policy.get("tag")
     if not isinstance(version, str) or not isinstance(tag, str):
-        raise PublishedReleaseError("release policy version/tag are invalid")
+        raise PublishedReleaseError("published release record version/tag are invalid")
     if receipt.get("repository") != EXPECTED_REPOSITORY:
         raise PublishedReleaseError("release receipt repository mismatch")
     if receipt.get("version") != version or receipt.get("tag") != tag:
@@ -83,6 +86,9 @@ def validate_published_release(
     source_digest = receipt.get("source_digest")
     if not isinstance(source_digest, str) or HEX40.fullmatch(source_digest) is None:
         raise PublishedReleaseError("release receipt source_digest must be lowercase 40-hex")
+    recorded_source = policy.get("source_digest")
+    if recorded_source is not None and recorded_source != source_digest:
+        raise PublishedReleaseError("published release record source_digest mismatch")
     try:
         tag_sha = Path(tag_sha_path).read_text(encoding="utf-8").strip()
     except (OSError, UnicodeError) as exc:
@@ -205,7 +211,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--assets-dir", required=True, type=Path)
     parser.add_argument("--view-json", required=True, type=Path)
-    parser.add_argument("--policy", default=Path("release-policy.v1.json"), type=Path)
+    parser.add_argument("--policy", default=Path("published-release.v1.json"), type=Path)
     parser.add_argument("--tag-sha", required=True, type=Path)
     args = parser.parse_args()
     try:
