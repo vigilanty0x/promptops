@@ -10,8 +10,12 @@
 - Reject missing, unexpected, duplicate-supplied, tampered, unsupported, or contradictory bundle evidence with exit code `2`.
 - Keep verification separate from deployment authorization: a coherent red release bundle verifies successfully with `release_gate_passed=false`.
 - Preserve legacy release-manifest source-evidence semantics and explicit `provenance=not-verified` receipts.
+- Expand the release gate to CPython 3.11, 3.12, 3.13, and 3.14 across the root project and all nine consolidated packages: 40 wheel-producing jobs.
+- Require deterministic double wheel builds, exact `setuptools==83.0.0`, clean-venv installed-wheel verification, retained wheel evidence, and fail-closed workflow/release policy checks.
+- Generate GitHub/Sigstore SLSA provenance over the ten canonical wheels after the complete matrix and verify every subject with repository, workflow, source-ref, source-SHA, and runner policy constraints.
+- Publish the GitHub `v0.5.0` release only from an owner-triggered `main` push after the complete build and signed-provenance gates succeed.
 
-Release candidate verification remains the full 20-job CI matrix: root PromptOps on Python 3.11/3.12 plus all nine consolidated packages on both versions.
+Release candidate verification is the 40-job wheel-producing matrix plus the signed provenance aggregation/verification job. The GitHub Release publisher is a separate owner-only post-gate job and does not run on pull requests.
 
 ## 0.4.0 - 2026-08-18
 
