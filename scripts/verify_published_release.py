@@ -1,9 +1,11 @@
-"""Verify downloaded GitHub Release assets against the release policy and receipt.
+"""Verify downloaded GitHub Release assets against the latest-published record.
 
-Cryptographic attestation verification is deliberately performed by the CI job
-with `gh attestation verify`; this module validates the downloaded release
-metadata, immutable asset set, hashes, and embedded provenance receipt using
-only the Python standard library.
+`published-release.v1.json` names the immutable release expected to exist now.
+The candidate publication policy is intentionally separate so preparing N+1 does
+not make CI pretend N+1 is already public. Cryptographic attestation verification
+is performed by the workflow with `gh attestation verify`; this module validates
+the downloaded release metadata, exact assets, hashes, tag target, and embedded
+provenance receipt using only the Python standard library.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from zipfile import BadZipFile, ZipFile
 
 EXPECTED_REPOSITORY = "vigilanty0x/promptops"
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
+SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 
 class PublishedReleaseError(ValueError):
@@ -51,26 +54,60 @@ def _digest(path: Path) -> str:
         raise PublishedReleaseError(f"cannot hash release asset: {path.name}") from exc
 
 
+def _validate_record(record: dict) -> tuple[str, str, str, str]:
+    if record.get("schema_version") != "1.0":
+        raise PublishedReleaseError("published-release schema_version must be 1.0")
+    if record.get("repository") != EXPECTED_REPOSITORY:
+        raise PublishedReleaseError("published-release repository mismatch")
+    version = record.get("version")
+    if not isinstance(version, str) or SEMVER.fullmatch(version) is None:
+        raise PublishedReleaseError("published-release version must be stable SemVer")
+    tag = record.get("tag")
+    if tag != f"v{version}":
+        raise PublishedReleaseError("published-release tag/version mismatch")
+    source_ref = record.get("source_ref")
+    if source_ref != "refs/heads/main":
+        raise PublishedReleaseError("published-release source_ref must be refs/heads/main")
+    source_digest = record.get("source_digest")
+    if not isinstance(source_digest, str) or HEX40.fullmatch(source_digest) is None:
+        raise PublishedReleaseError("published-release source_digest must be lowercase 40-hex")
+    if record.get("release_asset_count") != 13:
+        raise PublishedReleaseError("published-release must record 13 uploaded assets")
+    if record.get("canonical_wheel_count") != 10:
+        raise PublishedReleaseError("published-release must record 10 canonical wheels")
+    attestation_id = record.get("attestation_id")
+    if not isinstance(attestation_id, str) or not attestation_id.isdigit():
+        raise PublishedReleaseError("published-release attestation_id must be numeric text")
+    if record.get("verification_workflow") != ".github/workflows/release-verify.yml":
+        raise PublishedReleaseError("published-release verification workflow mismatch")
+    for field in (
+        "source_commit_signature_verified",
+        "release_integrity_verified",
+        "wheel_provenance_verified",
+        "immutable",
+    ):
+        if record.get(field) is not True:
+            raise PublishedReleaseError(f"published-release {field} must be true")
+    return version, tag, source_digest, attestation_id
+
+
 def validate_published_release(
     assets_dir: Path,
     view_json: Path,
-    policy_path: Path,
+    published_record_path: Path,
     tag_sha_path: Path,
 ) -> PublishedReleaseReceipt:
     assets_dir = Path(assets_dir)
     if not assets_dir.is_dir():
         raise PublishedReleaseError("release assets directory is missing")
-    policy = _load_json(Path(policy_path), "release policy")
+    record = _load_json(Path(published_record_path), "published-release record")
+    version, tag, recorded_source_digest, recorded_attestation_id = _validate_record(record)
     view = _load_json(Path(view_json), "release view")
     receipt_path = assets_dir / "RELEASE-RECEIPT.json"
     if not receipt_path.is_file():
         raise PublishedReleaseError("RELEASE-RECEIPT.json is missing")
     receipt = _load_json(receipt_path, "release receipt")
 
-    version = policy.get("version")
-    tag = policy.get("tag")
-    if not isinstance(version, str) or not isinstance(tag, str):
-        raise PublishedReleaseError("release policy version/tag are invalid")
     if receipt.get("repository") != EXPECTED_REPOSITORY:
         raise PublishedReleaseError("release receipt repository mismatch")
     if receipt.get("version") != version or receipt.get("tag") != tag:
@@ -81,8 +118,8 @@ def validate_published_release(
         raise PublishedReleaseError("published release must be non-draft and non-prerelease")
 
     source_digest = receipt.get("source_digest")
-    if not isinstance(source_digest, str) or HEX40.fullmatch(source_digest) is None:
-        raise PublishedReleaseError("release receipt source_digest must be lowercase 40-hex")
+    if source_digest != recorded_source_digest:
+        raise PublishedReleaseError("release receipt source digest differs from published-release record")
     try:
         tag_sha = Path(tag_sha_path).read_text(encoding="utf-8").strip()
     except (OSError, UnicodeError) as exc:
@@ -120,7 +157,7 @@ def validate_published_release(
     if _digest(sums) != receipt.get("sha256sums_sha256"):
         raise PublishedReleaseError("SHA256SUMS digest mismatch")
     try:
-        parsed = {}
+        parsed: dict[str, str] = {}
         for raw in sums.read_text(encoding="utf-8").splitlines():
             digest, name = raw.split("  ", 1)
             if name in parsed:
@@ -134,7 +171,7 @@ def validate_published_release(
         raise PublishedReleaseError("SHA256SUMS differs from release receipt")
 
     provenance_name = receipt.get("provenance_zip")
-    if not isinstance(provenance_name, str) or provenance_name != f"promptops-{version}-provenance.zip":
+    if provenance_name != f"promptops-{version}-provenance.zip":
         raise PublishedReleaseError("provenance ZIP name mismatch")
     provenance_zip = assets_dir / provenance_name
     if not provenance_zip.is_file():
@@ -175,8 +212,10 @@ def validate_published_release(
                 f"embedded provenance receipt {field} mismatch: expected {expected!r}, got {embedded.get(field)!r}"
             )
     attestation_id = embedded.get("attestation_id")
-    if not isinstance(attestation_id, str) or not attestation_id.isdigit():
-        raise PublishedReleaseError("embedded provenance receipt attestation_id is invalid")
+    if attestation_id != recorded_attestation_id:
+        raise PublishedReleaseError(
+            f"embedded attestation {attestation_id!r} differs from published-release record {recorded_attestation_id!r}"
+        )
 
     expected_names = set(wheel_sha256) | {
         "SHA256SUMS",
@@ -205,12 +244,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--assets-dir", required=True, type=Path)
     parser.add_argument("--view-json", required=True, type=Path)
-    parser.add_argument("--policy", default=Path("release-policy.v1.json"), type=Path)
+    parser.add_argument(
+        "--published-release",
+        default=Path("published-release.v1.json"),
+        type=Path,
+    )
     parser.add_argument("--tag-sha", required=True, type=Path)
     args = parser.parse_args()
     try:
         receipt = validate_published_release(
-            args.assets_dir, args.view_json, args.policy, args.tag_sha
+            args.assets_dir, args.view_json, args.published_release, args.tag_sha
         )
     except PublishedReleaseError as exc:
         raise SystemExit(f"published release verification: {exc}") from exc
