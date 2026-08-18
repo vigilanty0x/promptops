@@ -45,6 +45,10 @@ promptops release --version 0.5.0 --dataset datasets.json --scorecard scorecard.
 
 The PromptOps layer does not call providers. It consumes versioned local JSON artifacts, verifies source evidence before use, preserves failed attempts, and emits its own SHA-256-bound evidence artifacts.
 
+## Python support
+
+The root package and all nine consolidated packages declare `requires-python >=3.11`. The current stable support gate runs the full root and package matrix on **CPython 3.11, 3.12, 3.13, and 3.14**. Root package classifiers advertise those four tested series. Future or pre-release Python series beyond 3.14 are not part of the CI guarantee until they are added to the explicit support contract and pass the same gates.
+
 ## Fair comparison contract
 
 - every candidate receives the same scenario version, order, repeat count, and output limit;
@@ -89,6 +93,7 @@ Operational input or schema errors use exit code 2; report verification failure 
 ```bash
 python scripts/check.py
 python scripts/check_release_metadata.py
+python scripts/check_python_support.py
 python scripts/check_workflow_security.py
 python scripts/check_portfolio_compat.py
 PYTHONPATH=src python -m unittest discover -s tests -v
@@ -96,9 +101,9 @@ PYTHONPATH=src python -m promptbench probe --level functional
 python -m compileall -q src tests scripts
 ```
 
-`check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. `check_workflow_security.py` requires explicit read-only workflow permissions, bounded job timeouts, full 40-hex commit pins for every external action, non-persistent checkout credentials, and rejects privileged workflow triggers that are outside this repository's CI contract. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
+`check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. `check_python_support.py` binds the root and nine historical `requires-python` declarations to the root classifiers and both explicit CI Python matrices. `check_workflow_security.py` requires explicit read-only workflow permissions, bounded job timeouts, full 40-hex commit pins for every external action, non-persistent checkout credentials, and rejects privileged workflow triggers that are outside this repository's CI contract. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
 
-CI repeats validation on Python 3.11 and 3.12, enforces release-metadata, workflow-security, and portfolio gates, runs the example suite, exercises the counter-proof and demo, and tests all imported packages. Every root/package matrix job then builds a wheel, installs that wheel into a fresh virtual environment, smoke-tests its installed CLI surface, and only after that uploads the exact wheel as a uniquely named GitHub Actions artifact retained for 14 days. The root wheel additionally checks installed metadata against `promptbench.__version__` and runs a liveness probe. A broken or missing wheel therefore fails before evidence retention instead of hiding behind a successful editable install.
+CI repeats the complete root and consolidated-package gates on Python 3.11 through 3.14: **4 root jobs + 36 historical-package jobs = 40 jobs**. Every matrix job builds a wheel, installs that wheel into a fresh virtual environment, and only after successful smoke verification uploads the exact wheel as a uniquely named GitHub Actions artifact retained for 14 days. Historical wheel metadata/version/CLI checks are resolved from `portfolio-compatibility.v1.json`; the root wheel checks installed metadata against `promptbench.__version__` and runs a liveness probe. A broken, mismatched, or missing wheel therefore fails before evidence retention instead of hiding behind a successful editable install.
 
 ## Documentation
 
