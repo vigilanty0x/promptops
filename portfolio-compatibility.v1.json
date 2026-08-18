@@ -29,7 +29,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "5c51cdf22afd2e9c55b59b888b1a60ff1b4b3d54", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
@@ -45,7 +46,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "c0bfff75d2237bb48b95efa3389fdb6b4c45ccdc", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
@@ -61,7 +63,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "5239acbb56d271f86c01162c17c04d1875e83df8", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
@@ -77,7 +80,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "7bbef9d75115ccc406cc47554cc77e22300c1385", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
@@ -93,7 +97,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "49d5fc90be79661721c8a89797aafd50bb5fa069", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
@@ -109,7 +114,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "203870578fac187e97ff6854ea041bd16f815c8b", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
@@ -125,7 +131,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "b541a772943d63d5a37a0dccf3d4631f843885f4", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
@@ -141,7 +148,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "cff0de7a8a37d992d0079341955f79ca8801ce77", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
@@ -157,7 +165,8 @@
       "compatibility_verified": true,
       "consumer_scan_completed": true,
       "exact_reference_matches": 0,
-      "redirect_ready": false,
+      "redirect_ready": true,
+      "redirect_evidence": {"pr": 2, "merge_sha": "d877d4487c3322b3cdb68d51b085e1185efcf50d", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
       "human_archive_approval": false,
       "archive_ready": false
