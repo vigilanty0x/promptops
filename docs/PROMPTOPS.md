@@ -16,6 +16,31 @@ PromptOps extends PromptBench without changing the benchmark producer/judge cont
 
 Every artifact carries `schema_version=1.0`, a `kind`, and an `artifact_sha` computed over canonical JSON before the digest field is added.
 
+## Stored artifact verification
+
+`promptops verify artifact.json` verifies a stored PromptOps artifact after generation. `--kind` can optionally pin the expected kind and fail if the artifact identifies itself differently.
+
+Supported kinds are all seven PromptOps artifact families listed above. Verification first recomputes `artifact_sha`, verifies `schema_version=1.0` and the declared kind, then applies kind-specific invariants. Examples include:
+
+- scorecard rank/winner/metric consistency;
+- regression row/count/pass consistency;
+- failure-corpus count bounds and raw-output exclusion;
+- jury ballot/ranking/winner consistency;
+- dataset uniqueness and bounded entry structure;
+- route policy reconstruction from stored metrics, rejection reasons, selected candidate and fallbacks;
+- release gate/count/SHA-array consistency.
+
+This means simply recomputing a SHA after changing an internally contradictory field is not enough to pass verification.
+
+A successful verification receipt reports:
+
+- `valid=true`;
+- `integrity=verified`;
+- `contract=verified`;
+- `provenance=not-verified`.
+
+The last field is intentional. Local hash and contract verification does **not** prove who created the artifact, that it came from a trusted machine, or that its source evidence is remotely attested. Invalid/tampered/contract-inconsistent artifacts return CLI exit code `2`.
+
 ## Regression contract
 
 Three explicit tolerances are supported:
