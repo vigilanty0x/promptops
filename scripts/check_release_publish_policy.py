@@ -141,8 +141,9 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         'pattern: "*-wheel-py3.11"',
         'name: wheel-provenance-${{ github.run_id }}',
         "gh release create",
-        "gh release upload",
         "gh release view",
+        "gh release download",
+        "RELEASE-RECEIPT.json",
         'find /tmp/release-wheels -maxdepth 1 -name \'*.whl\' | wc -l',
     )
     for fragment in required_workflow_fragments:
