@@ -88,12 +88,16 @@ Operational input or schema errors use exit code 2; report verification failure 
 
 ```bash
 python scripts/check.py
+python scripts/check_release_metadata.py
+python scripts/check_portfolio_compat.py
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m promptbench probe --level functional
 python -m compileall -q src tests scripts
 ```
 
-CI repeats validation on Python 3.11 and 3.12, runs the example suite, exercises the counter-proof and demo, verifies the consolidated portfolio contracts, tests all imported packages, and builds wheels.
+`check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
+
+CI repeats validation on Python 3.11 and 3.12, enforces release-metadata and portfolio gates, runs the example suite, exercises the counter-proof and demo, tests all imported packages, and builds wheels.
 
 ## Documentation
 
