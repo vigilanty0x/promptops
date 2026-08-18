@@ -1,6 +1,6 @@
 """Reproducible offline prompt and model comparison harness."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from .harness import BenchmarkHarness
 from .models import BenchmarkReport, BenchmarkSuite, ValidationError
