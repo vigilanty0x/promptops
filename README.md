@@ -89,15 +89,16 @@ Operational input or schema errors use exit code 2; report verification failure 
 ```bash
 python scripts/check.py
 python scripts/check_release_metadata.py
+python scripts/check_workflow_security.py
 python scripts/check_portfolio_compat.py
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m promptbench probe --level functional
 python -m compileall -q src tests scripts
 ```
 
-`check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
+`check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. `check_workflow_security.py` requires explicit read-only workflow permissions, bounded job timeouts, full 40-hex commit pins for every external action, non-persistent checkout credentials, and rejects privileged workflow triggers that are outside this repository's CI contract. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
 
-CI repeats validation on Python 3.11 and 3.12, enforces release-metadata and portfolio gates, runs the example suite, exercises the counter-proof and demo, and tests all imported packages. Every root/package matrix job then builds a wheel, installs that wheel into a fresh virtual environment, smoke-tests its installed CLI surface, and only after that uploads the exact wheel as a uniquely named GitHub Actions artifact retained for 14 days. The root wheel additionally checks installed metadata against `promptbench.__version__` and runs a liveness probe. A broken or missing wheel therefore fails before evidence retention instead of hiding behind a successful editable install.
+CI repeats validation on Python 3.11 and 3.12, enforces release-metadata, workflow-security, and portfolio gates, runs the example suite, exercises the counter-proof and demo, and tests all imported packages. Every root/package matrix job then builds a wheel, installs that wheel into a fresh virtual environment, smoke-tests its installed CLI surface, and only after that uploads the exact wheel as a uniquely named GitHub Actions artifact retained for 14 days. The root wheel additionally checks installed metadata against `promptbench.__version__` and runs a liveness probe. A broken or missing wheel therefore fails before evidence retention instead of hiding behind a successful editable install.
 
 ## Documentation
 
