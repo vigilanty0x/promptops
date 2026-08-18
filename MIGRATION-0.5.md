@@ -1,15 +1,22 @@
-# Migration vers PromptOps 0.5.0
+# Migration vers PromptOps 0.5.1
 
-PromptOps 0.5.0 ajoute la vérification explicite d’un bundle de release local. Le changement est additif : les commandes et artefacts 0.4 restent disponibles.
+PromptOps 0.5.1 est un patch de cohérence de release au-dessus de 0.5.0. Les fonctionnalités applicatives de 0.5.0 restent disponibles, notamment `promptops verify-bundle`; le patch corrige surtout l’identité de version après les durcissements CI, provenance, publication et gouvernance ajoutés après le tag `v0.5.0`.
+
+## Pourquoi 0.5.1 existe
+
+`v0.5.0` a été publié de manière immuable avec ses wheels, checksums et provenance. Après cette publication, le dépôt a encore reçu des changements source-owned importants : vérification indépendante de la GitHub Release, preuve main-push de la provenance et sémantique de gouvernance 1.1. Laisser le package racine annoncer `0.5.0` aurait permis de reconstruire de nouveaux octets sous le même numéro de version que les octets déjà publiés.
+
+0.5.1 évite cette collision : tout nouvel artefact racine correspondant à l’état post-0.5.0 est identifié comme `promptbench-replay==0.5.1`.
 
 ## Compatibilité
 
-- Python 3.11 et 3.12 restent supportés.
+- CPython 3.11, 3.12, 3.13 et 3.14 sont couverts par le gate complet.
 - Les commandes `promptbench` et `promptops` existantes restent disponibles.
 - `promptops verify` conserve son rôle de vérification d’un artefact individuel.
-- Une nouvelle sous-commande `promptops verify-bundle` vérifie les liens entre un `release_manifest` et ses preuves locales.
-- Aucun scan implicite de dossier, réseau, provider, secret distant ou migration de base de données n’est introduit.
-- Les neuf packages consolidés restent indépendamment versionnés en `0.1.0`; `0.5.0` concerne le package racine `promptbench-replay`.
+- `promptops verify-bundle` continue de vérifier les liens entre un `release_manifest` et ses preuves locales.
+- Aucun scan implicite de dossier, provider, secret distant ou migration de base de données n’est introduit.
+- Les neuf packages consolidés restent indépendamment versionnés en `0.1.0`; `0.5.1` concerne uniquement le package racine `promptbench-replay`.
+- `release-policy.v1.json` décrit la candidate de publication autorisée; `published-release.v1.json` décrit séparément la dernière publication immuable déjà relue et vérifiée.
 
 ## Vérifier un bundle de release
 
@@ -52,22 +59,18 @@ La commande recompte les régressions `passed=false` parmi les preuves hash-vali
 
 Un release manifest modifié puis re-hashé pour prétendre `regression_gate_passed=true` alors que la régression référencée est réellement rouge échoue donc, même si le manifest est individuellement cohérent et possède un SHA valide.
 
-## Reçu
+## Publication et provenance
 
-Un bundle valide indique notamment :
+Le gate 0.5.1 comporte 40 jobs producteurs de wheels : quatre versions Python pour le package racine et les neuf packages consolidés. Chaque producteur réalise deux builds déterministes, vérifie leur SHA-256, installe le wheel en environnement virtuel propre et ne conserve l’artefact qu’après le smoke test.
 
-- `integrity=verified` ;
-- `contract=verified` ;
-- `linkage=verified` ;
-- `provenance=not-verified` ;
-- le nombre de références et de preuves uniques ;
-- le nombre observé de régressions rouges ;
-- l’état réel du gate de release.
+Après ces 40 jobs, `attest-wheels` réduit les artefacts à dix wheels canoniques byte-identiques entre versions Python, produit la provenance GitHub/Sigstore SLSA et re-vérifie chacun des dix sujets avec `gh attestation verify`.
 
-La provenance reste explicitement non vérifiée : aucune signature ou attestation distante n’est ajoutée.
+`publish-release` ne peut créer `v0.5.1` qu’après ces gates, depuis un push propriétaire vers `main`. La Release contient dix wheels, `SHA256SUMS`, le ZIP de provenance et `RELEASE-RECEIPT.json`, soit treize assets uploadés, puis le job les re-télécharge et recalcule leurs digests.
 
-## Rollback vers 0.4.0
+Pendant la PR de préparation 0.5.1, le workflow read-only continue de vérifier la dernière publication déjà attestée (`v0.5.0`) via `published-release.v1.json`; il ne prétend donc jamais qu’une candidate non publiée existe déjà.
 
-Un rollback applicatif consiste à réinstaller `promptbench-replay==0.4.0`. Les artefacts PromptOps ne nécessitent aucune transformation : `verify-bundle` devient simplement indisponible après rollback, tandis que `promptops verify`, routing, release et les autres opérations 0.4 restent compatibles.
+## Rollback vers 0.5.0
 
-Aucun état distant ou de base de données ne doit être annulé.
+Un rollback applicatif du patch consiste à réinstaller le wheel publié et vérifié `promptbench-replay==0.5.0` correspondant au tag immuable `v0.5.0`. Les artefacts PromptOps ne nécessitent aucune transformation.
+
+Le rollback ne doit pas déplacer ni réécrire `v0.5.0`. Les tags/releases publiés restent immuables; une correction ultérieure reçoit un nouveau numéro de version.
