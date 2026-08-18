@@ -49,7 +49,13 @@ def _integer(value: Any, field: str, *, minimum: int = 0) -> int:
     return value
 
 
-def _number(value: Any, field: str, *, minimum: float | None = None) -> float:
+def _number(
+    value: Any,
+    field: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise OpsValidationError(f"{field} must be numeric")
     result = float(value)
@@ -57,6 +63,8 @@ def _number(value: Any, field: str, *, minimum: float | None = None) -> float:
         raise OpsValidationError(f"{field} must be finite")
     if minimum is not None and result < minimum:
         raise OpsValidationError(f"{field} must be >= {minimum}")
+    if maximum is not None and result > maximum:
+        raise OpsValidationError(f"{field} must be <= {maximum}")
     return result
 
 
@@ -91,6 +99,8 @@ def _verify_regression(value: Mapping[str, Any]) -> None:
         reasons = row.get("reasons")
         if not isinstance(regressed, bool) or not isinstance(reasons, list):
             raise OpsValidationError(f"rows[{index}] must contain boolean regressed and array reasons")
+        if len(reasons) != len(set(reasons)):
+            raise OpsValidationError(f"rows[{index}] regression reasons must be unique")
         if regressed != bool(reasons):
             raise OpsValidationError(f"rows[{index}] regressed must match presence of reasons")
         for reason in reasons:
@@ -160,8 +170,14 @@ def _verify_jury(value: Mapping[str, Any]) -> None:
         _sha(ballot.get("report_sha"), f"ballots[{index}].report_sha")
         _text(ballot.get("suite_version"), f"ballots[{index}].suite_version")
         ballot_ranking = ballot.get("ranking")
-        if not isinstance(ballot_ranking, list) or not ballot_ranking:
-            raise OpsValidationError(f"ballots[{index}].ranking must be non-empty")
+        if (
+            not isinstance(ballot_ranking, list)
+            or not ballot_ranking
+            or len(ballot_ranking) != len(set(ballot_ranking))
+        ):
+            raise OpsValidationError(f"ballots[{index}].ranking must be non-empty and unique")
+        for candidate in ballot_ranking:
+            _text(candidate, f"ballots[{index}].ranking[]")
 
 
 def _verify_dataset(value: Mapping[str, Any]) -> None:
@@ -189,9 +205,30 @@ def _verify_route(value: Mapping[str, Any]) -> None:
     _text(value.get("suite_version"), "suite_version")
     _sha(value.get("source_scorecard_sha"), "source_scorecard_sha")
     policy = _mapping(value.get("policy"), "policy")
+    min_pass = _number(policy.get("min_pass_rate"), "policy.min_pass_rate", minimum=0.0, maximum=1.0)
+    max_latency_raw = policy.get("max_mean_latency_ms")
+    max_cost_raw = policy.get("max_total_cost_microunits")
+    max_latency = None if max_latency_raw is None else _number(
+        max_latency_raw, "policy.max_mean_latency_ms", minimum=0.0
+    )
+    max_cost = None if max_cost_raw is None else _number(
+        max_cost_raw, "policy.max_total_cost_microunits", minimum=0.0
+    )
+    allowed_raw = policy.get("allowed_candidates")
+    if allowed_raw is None:
+        allowed = None
+    else:
+        if (
+            not isinstance(allowed_raw, list)
+            or not 1 <= len(allowed_raw) <= MAX_ROUTING_CANDIDATES
+            or len(allowed_raw) != len(set(allowed_raw))
+        ):
+            raise OpsValidationError("policy.allowed_candidates must be a bounded unique array or null")
+        allowed = {_text(item, "policy.allowed_candidates[]") for item in allowed_raw}
     fallback_count = _integer(policy.get("fallback_count"), "policy.fallback_count")
     if fallback_count > 64:
         raise OpsValidationError("policy.fallback_count exceeds 64")
+
     candidates = value.get("candidates")
     if not isinstance(candidates, list) or not 1 <= len(candidates) <= MAX_ROUTING_CANDIDATES:
         raise OpsValidationError("route candidates must be a bounded non-empty array")
@@ -203,12 +240,34 @@ def _verify_route(value: Mapping[str, Any]) -> None:
         row = _mapping(raw, f"candidates[{index}]")
         ranks.append(_integer(row.get("rank"), f"candidates[{index}].rank", minimum=1))
         candidate = _text(row.get("candidate_id"), f"candidates[{index}].candidate_id")
+        pass_rate = _number(
+            row.get("pass_rate"), f"candidates[{index}].pass_rate", minimum=0.0, maximum=1.0
+        )
+        latency = _number(
+            row.get("mean_latency_ms"), f"candidates[{index}].mean_latency_ms", minimum=0.0
+        )
+        cost = _number(
+            row.get("total_cost_microunits"),
+            f"candidates[{index}].total_cost_microunits",
+            minimum=0.0,
+        )
         is_eligible = row.get("eligible")
         reasons = row.get("reasons")
         if not isinstance(is_eligible, bool) or not isinstance(reasons, list):
             raise OpsValidationError(f"candidates[{index}] eligibility contract is invalid")
-        if is_eligible != (len(reasons) == 0):
-            raise OpsValidationError(f"candidates[{index}] eligible must match empty reasons")
+        expected_reasons: list[str] = []
+        if allowed is not None and candidate not in allowed:
+            expected_reasons.append("not_allowed")
+        if pass_rate < min_pass:
+            expected_reasons.append("pass_rate")
+        if max_latency is not None and latency > max_latency:
+            expected_reasons.append("latency")
+        if max_cost is not None and cost > max_cost:
+            expected_reasons.append("cost")
+        if reasons != expected_reasons:
+            raise OpsValidationError(f"candidates[{index}] reasons do not match policy and metrics")
+        if is_eligible != (len(expected_reasons) == 0):
+            raise OpsValidationError(f"candidates[{index}] eligible does not match policy and metrics")
         if is_eligible:
             eligible.append(candidate)
     if ranks != list(range(1, len(candidates) + 1)):
@@ -245,8 +304,6 @@ def _verify_release(value: Mapping[str, Any]) -> None:
         _sha(digest, f"regression_shas[{index}]")
     if scorecards != sorted(scorecards) or regressions != sorted(regressions):
         raise OpsValidationError("release evidence SHA arrays must be sorted")
-    if len(scorecards) != len(set(scorecards)) or len(regressions) != len(set(regressions)):
-        raise OpsValidationError("release evidence SHA arrays must be unique")
     if value.get("evidence_hashes_verified") is not True:
         raise OpsValidationError("release manifest must record evidence_hashes_verified=true")
     gate = value.get("regression_gate_passed")
