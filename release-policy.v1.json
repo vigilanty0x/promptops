@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
   "repository": "vigilanty0x/promptops",
-  "version": "0.5.0",
-  "tag": "v0.5.0",
-  "publish_enabled": true,
+  "version": "0.6.0",
+  "tag": "v0.6.0",
+  "publish_enabled": false,
   "publish_event": "push",
   "publish_branch": "main",
   "publisher": "repository-owner",
