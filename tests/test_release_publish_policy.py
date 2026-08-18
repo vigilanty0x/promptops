@@ -17,12 +17,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def write_fixture(
     root: Path,
     *,
-    project_version: str = "0.5.0",
-    policy_version: str = "0.5.0",
-    tag: str = "v0.5.0",
-    publish_enabled: bool = True,
+    project_version: str = "0.6.0",
+    policy_version: str = "0.6.0",
+    tag: str = "v0.6.0",
+    publish_enabled: bool = False,
     wheel_count: int = 10,
     obsolete_notes: bool = False,
+    leave_publisher_when_disabled: bool = False,
 ) -> None:
     (root / ".github" / "workflows").mkdir(parents=True)
     policy = {
@@ -48,24 +49,26 @@ def write_fixture(
             "include_release_receipt": True,
         },
     }
-    (root / "release-policy.v1.json").write_text(
-        json.dumps(policy), encoding="utf-8"
-    )
+    (root / "release-policy.v1.json").write_text(json.dumps(policy), encoding="utf-8")
     (root / "pyproject.toml").write_text(
-        f'[project]\nname = "promptbench-replay"\nversion = "{project_version}"\n',
+        f'[project]\nname = "promptops-replay"\nversion = "{project_version}"\n',
         encoding="utf-8",
     )
-    notes = (
-        "Release candidate verification remains the full 20-job CI matrix."
-        if obsolete_notes
-        else "- 40 wheel-producing jobs require signed SLSA provenance before publishing `v0.5.0`."
-    )
+    if obsolete_notes:
+        notes = "Release candidate verification remains the full 20-job CI matrix."
+    else:
+        state = "Publication enabled." if publish_enabled else "Publication disabled pending review."
+        notes = (
+            f"- 40 wheel-producing jobs require SLSA provenance for `{tag}`.\n"
+            f"- {state}"
+        )
     (root / "CHANGELOG.md").write_text(
-        f"# Changelog\n\n## {policy_version} - 2026-08-18\n\n{notes}\n\n## 0.4.0 - 2026-08-17\n\n- Older.\n",
+        f"# Changelog\n\n## {policy_version} - 2026-08-18\n\n{notes}\n\n## 0.5.0 - 2026-08-18\n\n- Older.\n",
         encoding="utf-8",
     )
-    (root / ".github" / "workflows" / "ci.yml").write_text(
-        """name: CI
+    publisher = publish_enabled or leave_publisher_when_disabled
+    if publisher:
+        workflow = """name: CI
 jobs:
   publish-release:
     needs: [verify, verify-consolidated-package, attest-wheels]
@@ -84,47 +87,62 @@ jobs:
       - run: gh release create "$tag" /tmp/release-assets/*
       - run: gh release view "$tag"
       - run: gh release download "$tag" --dir /tmp/release-readback
-""",
-        encoding="utf-8",
-    )
+"""
+    else:
+        workflow = """name: CI
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - run: test -f release-policy.v1.json
+"""
+    (root / ".github" / "workflows" / "ci.yml").write_text(workflow, encoding="utf-8")
 
 
 class ReleasePublishPolicyTests(unittest.TestCase):
-    def test_current_repository_policy_is_consistent(self):
+    def test_current_repository_policy_is_prepared_but_not_authorized(self):
         receipt = validate_release_publish_policy(REPO_ROOT)
-        self.assertEqual(receipt.version, "0.5.0")
-        self.assertEqual(receipt.tag, "v0.5.0")
+        self.assertEqual(receipt.version, "0.6.0")
+        self.assertEqual(receipt.tag, "v0.6.0")
+        self.assertFalse(receipt.publish_enabled)
         self.assertEqual(receipt.required_jobs, 3)
         self.assertEqual(receipt.canonical_wheels, 10)
         self.assertGreater(receipt.release_note_lines, 0)
 
-    def test_valid_fixture_is_accepted(self):
+    def test_valid_disabled_fixture_is_accepted(self):
         with tempfile.TemporaryDirectory() as tmp:
+            receipt = validate_release_publish_policy(Path(tmp)) if False else None
             root = Path(tmp)
             write_fixture(root)
             receipt = validate_release_publish_policy(root)
-            self.assertEqual(receipt.version, "0.5.0")
-            self.assertEqual(receipt.canonical_wheels, 10)
+            self.assertFalse(receipt.publish_enabled)
+
+    def test_valid_enabled_fixture_is_accepted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, publish_enabled=True)
+            receipt = validate_release_publish_policy(root)
+            self.assertTrue(receipt.publish_enabled)
+
+    def test_disabled_policy_rejects_remaining_release_authority(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, leave_publisher_when_disabled=True)
+            with self.assertRaisesRegex(ReleasePublishPolicyError, "publication is disabled"):
+                validate_release_publish_policy(root)
 
     def test_project_version_drift_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_fixture(root, project_version="0.5.1")
+            write_fixture(root, project_version="0.6.1")
             with self.assertRaisesRegex(ReleasePublishPolicyError, "project.version"):
                 validate_release_publish_policy(root)
 
     def test_tag_drift_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write_fixture(root, tag="0.5.0")
+            write_fixture(root, tag="0.6.0")
             with self.assertRaisesRegex(ReleasePublishPolicyError, "tag must equal"):
-                validate_release_publish_policy(root)
-
-    def test_disabled_publication_is_rejected(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            write_fixture(root, publish_enabled=False)
-            with self.assertRaisesRegex(ReleasePublishPolicyError, "publish_enabled"):
                 validate_release_publish_policy(root)
 
     def test_release_asset_count_drift_is_rejected(self):
