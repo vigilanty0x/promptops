@@ -80,9 +80,10 @@ jobs:
         with:
           name: wheel-provenance-${{ github.run_id }}
       - run: test "$(find /tmp/release-wheels -maxdepth 1 -name '*.whl' | wc -l)" -eq 10
-      - run: gh release create "$tag"
-      - run: gh release upload "$tag" /tmp/release-assets/*
+      - run: test -f /tmp/release-assets/RELEASE-RECEIPT.json
+      - run: gh release create "$tag" /tmp/release-assets/*
       - run: gh release view "$tag"
+      - run: gh release download "$tag" --dir /tmp/release-readback
 """,
         encoding="utf-8",
     )
