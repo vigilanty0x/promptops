@@ -19,6 +19,17 @@ from .ops import (
     release_manifest,
 )
 from .routing import RoutingPolicy, route_scorecard
+from .verification import verify_artifact
+
+ARTIFACT_KINDS = (
+    "scorecard",
+    "regression",
+    "failure_corpus",
+    "jury_consensus",
+    "dataset_manifest",
+    "route_decision",
+    "release_manifest",
+)
 
 
 def _load(path: str) -> Any:
@@ -70,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
     datasets.add_argument("suites", nargs="+")
     datasets.add_argument("-o", "--output")
 
+    verify = sub.add_parser("verify", help="verify one stored PromptOps artifact")
+    verify.add_argument("artifact")
+    verify.add_argument("--kind", choices=ARTIFACT_KINDS)
+    verify.add_argument("-o", "--output")
+
     route = sub.add_parser("route", help="route from one verified PromptOps scorecard")
     route.add_argument("scorecard")
     route.add_argument("--min-pass-rate", type=float, default=0.0)
@@ -107,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
             value = jury_consensus([_load(path) for path in args.reports])
         elif args.command == "datasets":
             value = dataset_manifest([_load(path) for path in args.suites])
+        elif args.command == "verify":
+            value = verify_artifact(_load(args.artifact), expected_kind=args.kind)
         elif args.command == "route":
             policy = RoutingPolicy(
                 min_pass_rate=args.min_pass_rate,
