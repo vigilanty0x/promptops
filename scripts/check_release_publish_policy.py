@@ -18,10 +18,16 @@ ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "release-policy.v1.json"
 PYPROJECT_PATH = ROOT / "pyproject.toml"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
-WORKFLOW_PATH = ROOT / ".github" / "workflows" / "ci.yml"
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 EXPECTED_REPOSITORY = "vigilanty0x/promptops"
 EXPECTED_REQUIRES = ["verify", "verify-consolidated-package", "attest-wheels"]
+EXPECTED_ASSETS = {
+    "canonical_wheel_count": 10,
+    "canonical_wheel_python_source": "3.11",
+    "include_sha256sums": True,
+    "include_sigstore_provenance_bundle": True,
+    "include_release_receipt": True,
+}
 
 
 class ReleasePublishPolicyError(ValueError):
@@ -33,6 +39,7 @@ class ReleasePublishReceipt:
     version: str
     tag: str
     required_jobs: int
+    canonical_wheels: int
     release_note_lines: int
 
 
@@ -107,15 +114,22 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         "prerelease": False,
         "idempotent": True,
         "publish_once_per_version": True,
+        "assets": EXPECTED_ASSETS,
     }
     for field, expected in exact.items():
         _require(policy.get(field), expected, field)
 
     notes = _release_notes(changelog, version)
-    if "20-job CI matrix" in "\n".join(notes):
+    note_text = "\n".join(notes)
+    if "20-job CI matrix" in note_text:
         raise ReleasePublishPolicyError(
             "current release notes still describe the obsolete 20-job CI matrix"
         )
+    for phrase in ("40 wheel-producing jobs", "SLSA provenance", f"`{tag}`"):
+        if phrase not in note_text:
+            raise ReleasePublishPolicyError(
+                f"current release notes must describe final release evidence: missing {phrase!r}"
+            )
 
     required_workflow_fragments = (
         "publish-release:",
@@ -124,8 +138,12 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         "github.ref == 'refs/heads/main'",
         "github.actor == github.repository_owner",
         "release-policy.v1.json",
+        'pattern: "*-wheel-py3.11"',
+        'name: wheel-provenance-${{ github.run_id }}',
         "gh release create",
+        "gh release upload",
         "gh release view",
+        'find /tmp/release-wheels -maxdepth 1 -name \'*.whl\' | wc -l',
     )
     for fragment in required_workflow_fragments:
         if fragment not in workflow:
@@ -137,6 +155,7 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         version=version,
         tag=tag,
         required_jobs=len(EXPECTED_REQUIRES),
+        canonical_wheels=EXPECTED_ASSETS["canonical_wheel_count"],
         release_note_lines=len(notes),
     )
 
@@ -149,7 +168,8 @@ def main() -> int:
     print(
         "release publish policy verified: "
         f"version={receipt.version} tag={receipt.tag} "
-        f"required_jobs={receipt.required_jobs} release_note_lines={receipt.release_note_lines}"
+        f"required_jobs={receipt.required_jobs} canonical_wheels={receipt.canonical_wheels} "
+        f"release_note_lines={receipt.release_note_lines}"
     )
     return 0
 
