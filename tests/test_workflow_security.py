@@ -93,10 +93,10 @@ def workflow_with_release(*, guarded: bool = True) -> str:
 class WorkflowSecurityTests(unittest.TestCase):
     def test_current_repository_workflows_match_security_policy(self):
         receipt = validate_workflows(REPO_ROOT)
-        self.assertEqual(receipt.workflows, 1)
-        self.assertEqual(receipt.jobs, 4)
-        self.assertGreaterEqual(receipt.external_actions, 10)
-        self.assertEqual(receipt.checkout_steps, 3)
+        self.assertEqual(receipt.workflows, 2)
+        self.assertEqual(receipt.jobs, 5)
+        self.assertGreaterEqual(receipt.external_actions, 12)
+        self.assertEqual(receipt.checkout_steps, 4)
         self.assertEqual(receipt.attestation_jobs, 1)
         self.assertEqual(receipt.release_jobs, 1)
 
