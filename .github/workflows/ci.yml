@@ -76,10 +76,32 @@ jobs:
       - name: Build package wheel
         run: python -m pip wheel "packages/${{ matrix.package }}" --no-deps --wheel-dir /tmp/wheel
       - name: Smoke-test package wheel in clean venv
+        env:
+          PACKAGE: ${{ matrix.package }}
         run: |
           python -m venv /tmp/package-wheel-smoke
           /tmp/package-wheel-smoke/bin/python -m pip install --disable-pip-version-check --no-deps /tmp/wheel/*.whl
-          /tmp/package-wheel-smoke/bin/${{ matrix.package }} --help >/dev/null
+          /tmp/package-wheel-smoke/bin/python - <<'PY'
+          import importlib.metadata as metadata
+          import os
+          from pathlib import Path
+
+          package = os.environ["PACKAGE"]
+          distribution = metadata.distribution(package)
+          entry_points = [
+              entry
+              for entry in distribution.entry_points
+              if entry.group == "console_scripts" and entry.name == package
+          ]
+          assert len(entry_points) == 1, (
+              f"expected exactly one console script named {package!r}; "
+              f"found {[entry.name for entry in distribution.entry_points if entry.group == 'console_scripts']}"
+          )
+          target = entry_points[0].load()
+          assert callable(target), f"console script target for {package!r} is not callable"
+          executable = Path(os.environ["VIRTUAL_ENV"]) / "bin" / package
+          assert executable.is_file(), f"installed console script is missing: {executable}"
+          PY
       - name: Upload package wheel evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
