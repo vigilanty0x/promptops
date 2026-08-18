@@ -22,6 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --disable-pip-version-check -e .
       - run: python scripts/check.py
+      - run: python scripts/check_release_metadata.py
       - run: python scripts/check_portfolio_compat.py
       - run: python -m unittest discover -s tests -v
       - run: promptbench validate --suite examples/suite.json
