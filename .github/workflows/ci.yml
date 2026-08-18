@@ -85,6 +85,7 @@ jobs:
           import importlib.metadata as metadata
           import os
           from pathlib import Path
+          import sys
 
           package = os.environ["PACKAGE"]
           distribution = metadata.distribution(package)
@@ -99,7 +100,7 @@ jobs:
           )
           target = entry_points[0].load()
           assert callable(target), f"console script target for {package!r} is not callable"
-          executable = Path(os.environ["VIRTUAL_ENV"]) / "bin" / package
+          executable = Path(sys.prefix) / "bin" / package
           assert executable.is_file(), f"installed console script is missing: {executable}"
           PY
       - name: Upload package wheel evidence
