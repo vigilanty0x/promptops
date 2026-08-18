@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "target": "promptops",
+  "base": "promptbench",
+  "baseHeadSha": "57e79a4b13fa75cccf81dcb8695ac5c713482e65",
+  "sources": [
+    {
+      "repository": "consensus-engine",
+      "prefix": "packages/consensus-engine",
+      "headSha": "cbacee3dbbec4f1ddaaa9755b53aaa67b1304941",
+      "treeSha": "35f2c46232d47e05f9b1fdca6bfa8339dc802325",
+      "ancestor": true,
+      "treeMatch": true
+    },
+    {
+      "repository": "llm-jury",
+      "prefix": "packages/llm-jury",
+      "headSha": "e44911d87e21725c949d7e742c2b7270b7f67650",
+      "treeSha": "6edb48a2b0fc18c33715890af03daed0679a3ea5",
+      "ancestor": true,
+      "treeMatch": true
+    },
+    {
+      "repository": "eval-dataset-builder",
+      "prefix": "packages/eval-dataset-builder",
+      "headSha": "02d1b132528fceb1688e980b124a2f3c160082a3",
+      "treeSha": "56472a77455b28600656d3d1b42f5c09be18f428",
+      "ancestor": true,
+      "treeMatch": true
+    },
+    {
+      "repository": "prompt-regression",
+      "prefix": "packages/prompt-regression",
+      "headSha": "e9111956bbf21ae36b988bb415007048ab28502d",
+      "treeSha": "7036857ed25f786c8caef00d163b464d5446085d",
+      "ancestor": true,
+      "treeMatch": true
+    },
+    {
+      "repository": "model-scorecard",
+      "prefix": "packages/model-scorecard",
+      "headSha": "b24b2eb354e67b4791e73cbc346d3850b481fe5c",
+      "treeSha": "612ef76cbd128d1e3f6cd53a50032d79b2af756e",
+      "ancestor": true,
+      "treeMatch": true
+    },
+    {
+      "repository": "answer-diff",
+      "prefix": "packages/answer-diff",
+      "headSha": "c637bdb7e2e5d541ee8dbdb5274cc817073242c5",
+      "treeSha": "90ae10d81cd02249cc27798f24bbd48f04b80f02",
+      "ancestor": true,
+      "treeMatch": true
+    },
+    {
+      "repository": "benchmark-run-recorder",
+      "prefix": "packages/benchmark-run-recorder",
+      "headSha": "c6da4fb1aea8e6d23167342e6461b3900929a44c",
+      "treeSha": "1386c1cfb7937721a39e65e63d4d18c92d5236ca",
+      "ancestor": true,
+      "treeMatch": true
+    },
+    {
+      "repository": "prompt-package-manager",
+      "prefix": "packages/prompt-package-manager",
+      "headSha": "17fab8db694493c5a08cf27cb683bc3a0f29927d",
+      "treeSha": "ff26e031d5adaa5b08546f1ec803d3442d6c1e5b",
+      "ancestor": true,
+      "treeMatch": true
+    },
+    {
+      "repository": "multi-agent-failure-corpus",
+      "prefix": "packages/multi-agent-failure-corpus",
+      "headSha": "fb75906f8f7dcde4cca8bb16457a2f90ddac6333",
+      "treeSha": "3fb1d1214615bed15c7ed113078f38f510616037",
+      "ancestor": true,
+      "treeMatch": true
+    }
+  ],
+  "state": "REHEARSAL_ONLY",
+  "archiveGate": "BLOCKED",
+  "reason": "Tests, compatibility, release, redirect, consumer, rollback, and human gates are not all verified."
+}
