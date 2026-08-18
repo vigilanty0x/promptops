@@ -7,9 +7,15 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr
 
-from promptbench.ops import OpsValidationError, _digest, build_scorecard, compare_reports, dataset_manifest
+from promptbench.ops import (
+    OpsValidationError,
+    _digest,
+    build_scorecard,
+    compare_reports,
+    dataset_manifest,
+    release_manifest,
+)
 from promptbench.ops_cli import main
-from promptbench.release_ops import release_manifest
 
 
 def report(*, version="1.0.0", pass_rate=1.0):
