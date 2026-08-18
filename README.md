@@ -19,6 +19,23 @@ Run the fully synthetic demonstration:
 promptbench demo --workspace /tmp/promptbench-demo
 ```
 
+## PromptOps
+
+The repository now includes an offline PromptOps layer on top of verified PromptBench reports. It adds content-addressed scorecards, regression gates, deterministic multi-report jury consensus, versioned dataset manifests, bounded failure corpora, and release evidence manifests.
+
+```bash
+promptops scorecard report.json -o scorecard.json
+promptops failures report.json -o failures.json
+promptops regress baseline.json current.json --pass-rate-drop 0.02 -o regression.json
+promptops jury report-a.json report-b.json report-c.json -o jury.json
+promptops datasets suite-v1.json suite-v2.json -o datasets.json
+promptops release --version 0.2.0 --dataset datasets.json --scorecard scorecard.json --regression regression.json -o release.json
+```
+
+`promptops regress` returns exit code `3` when a configured quality, latency, or cost tolerance is breached. `promptops release` also returns `3` when supplied regression evidence is red. Invalid or tampered input returns exit code `2`.
+
+The PromptOps layer does not call providers. It consumes versioned local JSON artifacts, verifies source report hashes before use, preserves failed attempts, and emits its own SHA-256-bound evidence artifacts.
+
 ## Fair comparison contract
 
 - every candidate receives the same scenario version, order, repeat count, and output limit;
