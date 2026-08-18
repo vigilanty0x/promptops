@@ -32,12 +32,12 @@ promptops datasets suite-v1.json suite-v2.json -o datasets.json
 promptops verify scorecard.json --kind scorecard
 promptops verify-bundle release.json --artifact datasets.json --artifact scorecard.json --artifact regression.json
 promptops route scorecard.json --min-pass-rate 0.9 --max-latency-ms 500 --max-cost-microunits 10000 --fallbacks 1 -o route.json
-promptops release --version 0.4.0 --dataset datasets.json --scorecard scorecard.json --regression regression.json -o release.json
+promptops release --version 0.5.0 --dataset datasets.json --scorecard scorecard.json --regression regression.json -o release.json
 ```
 
 `promptops verify` recomputes the stored artifact SHA and checks kind-specific internal invariants for `scorecard`, `regression`, `failure_corpus`, `jury_consensus`, `dataset_manifest`, `route_decision`, and `release_manifest`. A successful receipt reports integrity and contract verification while explicitly keeping `provenance=not-verified`; it does not claim a signature or remote attestation. For historical pre-0.3 release manifests that never recorded the later source-evidence-integrity field, the receipt reports `source_evidence_integrity=not-recorded` instead of inventing a newer guarantee.
 
-`promptops verify-bundle` verifies a release manifest plus an explicit list of local dataset, scorecard, and regression artifacts. It does not scan directories or fetch remote evidence. Every supplied artifact must verify independently, the unique kind/SHA reference set must exactly match the release manifest, and the observed red-regression count must agree with the release gate. A coherent release whose quality gate is red is still a valid bundle and returns exit code `0` with `release_gate_passed=false`; missing, extra, duplicate, tampered, or contradictory evidence returns `2`.
+`promptops verify-bundle` verifies a release manifest plus an explicit list of local dataset, scorecard, and regression artifacts. It does not scan directories or fetch remote evidence. Every supplied artifact must verify independently, the unique kind/SHA reference set must exactly match the release manifest, and the observed red-regression count must agree with the release gate. Repeated identical SHA references need only one local file, while their multiplicity remains significant for release counters. A coherent release whose quality gate is red is still a valid bundle and returns exit code `0` with `release_gate_passed=false`; missing, extra, duplicate-supplied, tampered, or contradictory evidence returns `2`.
 
 `promptops route` verifies the scorecard SHA before making a decision. It preserves scorecard rank order, applies only the explicit quality/latency/cost/allowlist constraints supplied by the operator, and emits `decision=abstain` when no candidate satisfies them. It never calls a provider or guesses missing capabilities.
 
@@ -100,7 +100,7 @@ CI repeats validation on Python 3.11 and 3.12, runs the example suite, exercises
 - [Architecture](docs/ARCHITECTURE.md)
 - [Suite and report schemas](docs/SCHEMA.md)
 - [PromptOps evidence contracts](docs/PROMPTOPS.md)
-- [Migration to 0.4](MIGRATION-0.4.md)
+- [Migration to 0.5](MIGRATION-0.5.md)
 - [Portfolio compatibility/archive gate](docs/PORTFOLIO-COMPATIBILITY-AND-ARCHIVE-GATE.md)
 - [Methodology and limits](docs/METHODOLOGY.md)
 - [Safety](docs/SAFETY.md)

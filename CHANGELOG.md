@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 - 2026-08-18
+
+- Add explicit `promptops verify-bundle` release-evidence linkage verification.
+- Verify the release manifest and every caller-supplied dataset, scorecard, and regression artifact before linkage checks.
+- Require the unique `(kind, artifact_sha)` evidence set to exactly match the release manifest without scanning directories or fetching remote evidence.
+- Reconcile actual hash-valid red regressions with `failed_regression_count` and `regression_gate_passed`, catching re-hashed release manifests that are internally consistent but false relative to their referenced evidence.
+- Preserve producer semantics for repeated identical evidence SHA references: one local file satisfies the repeated SHA while reference multiplicity still contributes to release gate counts.
+- Reject missing, unexpected, duplicate-supplied, tampered, unsupported, or contradictory bundle evidence with exit code `2`.
+- Keep verification separate from deployment authorization: a coherent red release bundle verifies successfully with `release_gate_passed=false`.
+- Preserve legacy release-manifest source-evidence semantics and explicit `provenance=not-verified` receipts.
+
+Release candidate verification remains the full 20-job CI matrix: root PromptOps on Python 3.11/3.12 plus all nine consolidated packages on both versions.
+
 ## 0.4.0 - 2026-08-18
 
 - Add generic `promptops verify` support for all seven PromptOps artifact kinds: scorecards, regressions, failure corpora, jury consensus, dataset manifests, route decisions, and release manifests.
