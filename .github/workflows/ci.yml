@@ -159,3 +159,114 @@ jobs:
           path: /tmp/wheel/*.whl
           if-no-files-found: error
           retention-days: 14
+
+  attest-wheels:
+    needs: [verify, verify-consolidated-package]
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.actor == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download all verified wheel artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: "*-wheel-py*"
+          path: /tmp/attest-input
+          merge-multiple: false
+          digest-mismatch: error
+      - name: Prepare canonical wheel subjects
+        run: |
+          python - <<'PY'
+          from collections import defaultdict
+          from hashlib import sha256
+          from pathlib import Path
+          import shutil
+
+          source = Path("/tmp/attest-input")
+          target = Path("/tmp/attest-subjects")
+          target.mkdir(parents=True, exist_ok=True)
+          wheels = sorted(source.rglob("*.whl"))
+          assert len(wheels) == 40, f"expected 40 downloaded wheel files; found {len(wheels)}"
+
+          groups = defaultdict(list)
+          for wheel in wheels:
+              groups[wheel.name].append(wheel)
+          assert len(groups) == 10, f"expected 10 canonical wheel names; found {len(groups)}"
+
+          checksums = []
+          for name, files in sorted(groups.items()):
+              assert len(files) == 4, f"expected four Python-matrix copies for {name}; found {len(files)}"
+              digests = []
+              for path in files:
+                  digests.append(sha256(path.read_bytes()).hexdigest())
+              assert len(set(digests)) == 1, f"cross-Python wheel bytes differ for {name}: {digests}"
+              shutil.copy2(files[0], target / name)
+              checksums.append(f"{digests[0]}  {name}")
+
+          (target / "SHA256SUMS").write_text("\n".join(checksums) + "\n", encoding="utf-8")
+          PY
+      - name: Generate signed SLSA provenance
+        id: attest
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: /tmp/attest-subjects/*.whl
+      - name: Verify signed provenance policy
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          test -s "$BUNDLE_PATH"
+          test "$(find /tmp/attest-subjects -maxdepth 1 -name '*.whl' | wc -l)" -eq 10
+          gh attestation verify --help >/dev/null
+          for wheel in /tmp/attest-subjects/*.whl; do
+            gh attestation verify "$wheel" \
+              --repo "$GITHUB_REPOSITORY" \
+              --bundle "$BUNDLE_PATH" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+              --source-ref "$GITHUB_REF" \
+              --source-digest "$GITHUB_SHA" \
+              --deny-self-hosted-runners >/dev/null
+          done
+      - name: Write provenance receipt
+        env:
+          ATTESTATION_ID: ${{ steps.attest.outputs.attestation-id }}
+          ATTESTATION_URL: ${{ steps.attest.outputs.attestation-url }}
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt = {
+              "schema_version": "1.0",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow": ".github/workflows/ci.yml",
+              "event": os.environ["GITHUB_EVENT_NAME"],
+              "source_ref": os.environ["GITHUB_REF"],
+              "source_digest": os.environ["GITHUB_SHA"],
+              "runner_environment": os.environ.get("RUNNER_ENVIRONMENT"),
+              "canonical_subject_count": 10,
+              "attestation_id": os.environ.get("ATTESTATION_ID"),
+              "attestation_url": os.environ.get("ATTESTATION_URL"),
+              "bundle_path": os.environ.get("BUNDLE_PATH"),
+              "verified_with_gh_cli": True,
+              "provenance": "sigstore-slsa-github-actions",
+          }
+          Path("/tmp/attest-subjects/PROVENANCE-RECEIPT.json").write_text(
+              json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+      - name: Upload provenance bundle evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wheel-provenance-${{ github.run_id }}
+          path: |
+            ${{ steps.attest.outputs.bundle-path }}
+            /tmp/attest-subjects/SHA256SUMS
+            /tmp/attest-subjects/PROVENANCE-RECEIPT.json
+          if-no-files-found: error
+          retention-days: 30

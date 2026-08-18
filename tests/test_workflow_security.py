@@ -42,19 +42,55 @@ jobs:
 """
 
 
+def workflow_with_attestation(*, guarded: bool = True) -> str:
+    guard = (
+        "${{ github.event_name == 'push' || (github.event_name == 'pull_request' && "
+        "github.actor == github.repository_owner && "
+        "github.event.pull_request.head.repo.full_name == github.repository) }}"
+        if guarded
+        else "${{ github.event_name == 'pull_request' }}"
+    )
+    return workflow() + f"""  attest-wheels:
+    needs: [verify, verify-consolidated-package]
+    if: {guard}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/attest@{SHA}
+"""
+
+
 class WorkflowSecurityTests(unittest.TestCase):
     def test_current_repository_workflows_match_security_policy(self):
         receipt = validate_workflows(REPO_ROOT)
         self.assertEqual(receipt.workflows, 1)
-        self.assertEqual(receipt.jobs, 2)
-        self.assertGreaterEqual(receipt.external_actions, 6)
+        self.assertEqual(receipt.jobs, 3)
+        self.assertGreaterEqual(receipt.external_actions, 9)
         self.assertEqual(receipt.checkout_steps, 2)
+        self.assertEqual(receipt.attestation_jobs, 1)
 
     def test_valid_fixture_is_accepted(self):
-        jobs, actions, checkouts = validate_workflow_text(
+        jobs, actions, checkouts, attestations = validate_workflow_text(
             workflow(), path=Path("fixture.yml")
         )
-        self.assertEqual((jobs, actions, checkouts), (1, 2, 1))
+        self.assertEqual((jobs, actions, checkouts, attestations), (1, 2, 1, 0))
+
+    def test_owner_guarded_attestation_permissions_are_accepted(self):
+        jobs, actions, checkouts, attestations = validate_workflow_text(
+            workflow_with_attestation(), path=Path("fixture.yml")
+        )
+        self.assertEqual((jobs, actions, checkouts, attestations), (2, 3, 1, 1))
+
+    def test_unguarded_attestation_job_is_rejected(self):
+        with self.assertRaisesRegex(WorkflowSecurityError, "missing required guard"):
+            validate_workflow_text(
+                workflow_with_attestation(guarded=False), path=Path("fixture.yml")
+            )
 
     def test_floating_action_tag_is_rejected(self):
         with self.assertRaisesRegex(WorkflowSecurityError, "full 40-hex"):
@@ -69,7 +105,7 @@ class WorkflowSecurityTests(unittest.TestCase):
             )
 
     def test_write_permission_is_rejected(self):
-        with self.assertRaisesRegex(WorkflowSecurityError, "permissions must be exactly"):
+        with self.assertRaisesRegex(WorkflowSecurityError, "top-level permissions"):
             validate_workflow_text(
                 workflow(permission="write"), path=Path("fixture.yml")
             )

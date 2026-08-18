@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "observed_at": "2026-08-18",
   "repository": "vigilanty0x/promptops",
-  "observed_main_sha": "1c643620c04a4f6e31019440b5d51bc382bc7df6",
+  "observed_main_sha": "ab53613c2f48abb71da2bece10cc5ae92e3de417",
   "gates": {
     "branch_protection": {
       "status": "BLOCKED_TOOLING",
@@ -21,11 +21,37 @@
       "close_when": "GitHub reports main protected=true and the required CI rule is enabled."
     },
     "artifact_attestation": {
-      "status": "BLOCKED_VERIFICATION_TOOLING",
+      "status": "IMPLEMENTED_VERIFIED_OWNER_PR",
       "desired": true,
-      "enabled_by_this_session": false,
-      "reason": "GitHub supports signed artifact attestations, but the available connector cannot read back the repository attestation API needed to independently verify the result. CI write/OIDC permissions were not broadened without readback verification.",
-      "close_when": "A signed provenance attestation is produced for retained release artifacts and can be independently read and verified in the active toolchain."
+      "enabled_by_this_session": true,
+      "owner_same_repo_pr_verified": true,
+      "main_push_configured": true,
+      "external_fork_pr_attestation_allowed": false,
+      "verified_run": {
+        "run_id": 32091517015,
+        "event": "pull_request",
+        "pull_request": 25,
+        "workflow": ".github/workflows/ci.yml",
+        "source_ref": "refs/pull/25/merge",
+        "source_digest": "336ed6c2290ff28af0e127b3aa6378b33898ef8f",
+        "runner_environment": "github-hosted",
+        "canonical_subject_count": 10,
+        "attestation_id": "41255136",
+        "provenance_artifact_id": 9308496511,
+        "provenance_artifact_digest": "sha256:991659a6086eb65167870d51b5b8a0df7cb5a52e81dfa4bec87af24c1fc2729e",
+        "sigstore_media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+        "predicate_type": "https://slsa.dev/provenance/v1",
+        "verified_with_gh_cli": true
+      },
+      "strict_verification": {
+        "repository_required": true,
+        "signer_workflow_required": true,
+        "source_ref_required": true,
+        "source_digest_required": true,
+        "deny_self_hosted_runners": true
+      },
+      "main_push_readback": "TOOL_LIMITED",
+      "note": "The owner same-repository PR mechanism was executed end-to-end: 40 verified wheel artifacts collapsed to 10 byte-identical canonical subjects, GitHub/Sigstore SLSA provenance was generated, every canonical wheel passed gh attestation verify with repository/workflow/ref/SHA/runner policy, and the Sigstore bundle plus receipt was downloaded and inspected. The same job is configured for main pushes; this session's connector does not expose a reliable push-run listing/readback endpoint."
     },
     "historical_repository_archival": {
       "status": "BLOCKED_HUMAN_APPROVAL",
