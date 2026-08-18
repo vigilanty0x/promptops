@@ -1,9 +1,9 @@
 """Validate the machine-readable external governance blocker register.
 
-This gate validates repository-owned truthfulness only. It does not pretend to
-read or mutate live GitHub administration state. Live branch protection remains
-a server-side observation. Signed wheel provenance may be recorded as verified
-only when the register contains an executed owner/same-repository CI proof.
+This gate validates repository-owned truthfulness. Live branch protection remains
+a server-side observation. Signed provenance may be recorded as verified only
+when the register contains executed CI evidence; published main provenance must
+also agree with the explicit release policy.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ class GovernanceReceipt:
     human_approvals: int
     archive_ready: int
     attestation_status: str
+    published_release: str
 
 
 def _load(path: Path) -> dict:
@@ -55,12 +56,17 @@ def _require_nonempty_text(value: object, field: str) -> str:
     return value
 
 
+def _require_positive_int(value: object, field: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise GovernanceManifestError(f"{field} must be a positive integer")
+    return value
+
+
 def _portfolio_counts(portfolio: dict) -> tuple[int, int, int]:
     packages = portfolio.get("packages")
     if not isinstance(packages, list) or not packages:
         raise GovernanceManifestError("portfolio manifest must contain packages")
-    approvals = 0
-    ready = 0
+    approvals = ready = 0
     for index, item in enumerate(packages):
         if not isinstance(item, dict):
             raise GovernanceManifestError(f"portfolio packages[{index}] must be an object")
@@ -79,19 +85,94 @@ def _portfolio_counts(portfolio: dict) -> tuple[int, int, int]:
     return len(packages), approvals, ready
 
 
-def _verify_attestation(attestation: object) -> str:
+def _verify_owner_pr_proof(proof: object) -> None:
+    if not isinstance(proof, dict):
+        raise GovernanceManifestError("artifact_attestation.verified_run must be an object")
+    _require_positive_int(proof.get("run_id"), "artifact_attestation.verified_run.run_id")
+    if proof.get("event") != "pull_request":
+        raise GovernanceManifestError("artifact attestation owner proof must be a pull_request run")
+    _require_positive_int(proof.get("pull_request"), "artifact_attestation.verified_run.pull_request")
+    if proof.get("workflow") != ".github/workflows/ci.yml":
+        raise GovernanceManifestError("artifact attestation owner proof must use .github/workflows/ci.yml")
+    source_ref = _require_nonempty_text(proof.get("source_ref"), "artifact_attestation.verified_run.source_ref")
+    if not source_ref.startswith("refs/pull/") or not source_ref.endswith("/merge"):
+        raise GovernanceManifestError("artifact attestation owner proof source_ref must be a PR merge ref")
+    source_digest = proof.get("source_digest")
+    if not isinstance(source_digest, str) or _SHA40.fullmatch(source_digest) is None:
+        raise GovernanceManifestError("artifact attestation owner proof source_digest must be 40-hex")
+    if proof.get("runner_environment") != "github-hosted":
+        raise GovernanceManifestError("artifact attestation owner proof must use github-hosted")
+    if proof.get("canonical_subject_count") != 10:
+        raise GovernanceManifestError("artifact attestation owner proof must cover 10 wheels")
+    for field in ("attestation_id", "provenance_artifact_id"):
+        if str(proof.get(field, "")).strip() in {"", "0"}:
+            raise GovernanceManifestError(f"artifact_attestation.verified_run.{field} must be recorded")
+    artifact_digest = proof.get("provenance_artifact_digest")
+    if not isinstance(artifact_digest, str) or _SHA256_PREFIXED.fullmatch(artifact_digest) is None:
+        raise GovernanceManifestError("owner provenance artifact digest must be sha256:<64-hex>")
+    if proof.get("sigstore_media_type") != "application/vnd.dev.sigstore.bundle.v0.3+json":
+        raise GovernanceManifestError("owner proof must record Sigstore bundle v0.3")
+    if proof.get("predicate_type") != "https://slsa.dev/provenance/v1":
+        raise GovernanceManifestError("owner proof must record SLSA provenance v1")
+    _require_bool(proof.get("verified_with_gh_cli"), "artifact_attestation.verified_run.verified_with_gh_cli", True)
+
+
+def _verify_main_release_proof(proof: object, release_policy: dict) -> str:
+    if not isinstance(proof, dict):
+        raise GovernanceManifestError("artifact_attestation.main_release_proof must be an object")
+    _require_positive_int(
+        proof.get("release_verification_run_id"),
+        "artifact_attestation.main_release_proof.release_verification_run_id",
+    )
+    if proof.get("release_verification_workflow") != ".github/workflows/release-verify.yml":
+        raise GovernanceManifestError("main release proof must use release-verify.yml")
+    if proof.get("verification_event") != "pull_request":
+        raise GovernanceManifestError("main release proof verification event must be pull_request")
+    _require_positive_int(
+        proof.get("verification_pull_request"),
+        "artifact_attestation.main_release_proof.verification_pull_request",
+    )
+    version = _require_nonempty_text(proof.get("published_version"), "artifact_attestation.main_release_proof.published_version")
+    tag = _require_nonempty_text(proof.get("published_tag"), "artifact_attestation.main_release_proof.published_tag")
+    if version != release_policy.get("version") or tag != release_policy.get("tag"):
+        raise GovernanceManifestError("main release proof version/tag must match release-policy.v1.json")
+    if proof.get("source_ref") != "refs/heads/main":
+        raise GovernanceManifestError("main release proof source_ref must be refs/heads/main")
+    digest = proof.get("source_digest")
+    if not isinstance(digest, str) or _SHA40.fullmatch(digest) is None:
+        raise GovernanceManifestError("main release proof source_digest must be 40-hex")
+    assets = release_policy.get("assets")
+    if not isinstance(assets, dict) or assets.get("canonical_wheel_count") != 10:
+        raise GovernanceManifestError("release policy must require ten canonical wheels")
+    if proof.get("canonical_subject_count") != 10 or proof.get("release_asset_count") != 13:
+        raise GovernanceManifestError("main release proof must record 10 subjects and 13 assets")
+    attestation_id = proof.get("attestation_id")
+    if not isinstance(attestation_id, str) or not attestation_id.isdigit():
+        raise GovernanceManifestError("main release proof attestation_id must be numeric text")
+    for field in (
+        "release_tag_matches_source",
+        "source_commit_signature_verified",
+        "published_release_integrity_verified",
+        "published_wheel_provenance_verified",
+    ):
+        _require_bool(proof.get(field), f"artifact_attestation.main_release_proof.{field}", True)
+    if proof.get("verification_token_permissions") != {"contents": "read", "metadata": "read"}:
+        raise GovernanceManifestError("main release proof must record read-only verification token permissions")
+    return f"{version}@{tag}"
+
+
+def _verify_attestation(attestation: object, release_policy: dict) -> tuple[str, str]:
     if not isinstance(attestation, dict):
         raise GovernanceManifestError("artifact_attestation must be an object")
-    expected_status = "IMPLEMENTED_VERIFIED_OWNER_PR"
+    expected_status = "IMPLEMENTED_VERIFIED_PR_AND_MAIN_RELEASE"
     if attestation.get("status") != expected_status:
-        raise GovernanceManifestError(
-            f"artifact attestation status must be {expected_status} after verified provenance CI proof"
-        )
+        raise GovernanceManifestError(f"artifact attestation status must be {expected_status}")
     for field in (
         "desired",
         "enabled_by_this_session",
         "owner_same_repo_pr_verified",
         "main_push_configured",
+        "main_push_verified_via_release",
     ):
         _require_bool(attestation.get(field), f"artifact_attestation.{field}", True)
     _require_bool(
@@ -99,10 +180,8 @@ def _verify_attestation(attestation: object) -> str:
         "artifact_attestation.external_fork_pr_attestation_allowed",
         False,
     )
-    if attestation.get("main_push_readback") != "TOOL_LIMITED":
-        raise GovernanceManifestError(
-            "artifact_attestation.main_push_readback must remain TOOL_LIMITED until live push readback is available"
-        )
+    if attestation.get("main_push_readback") != "VERIFIED_VIA_PUBLISHED_RELEASE":
+        raise GovernanceManifestError("artifact_attestation.main_push_readback must be VERIFIED_VIA_PUBLISHED_RELEASE")
 
     strict = attestation.get("strict_verification")
     if not isinstance(strict, dict):
@@ -116,54 +195,17 @@ def _verify_attestation(attestation: object) -> str:
     ):
         _require_bool(strict.get(field), f"artifact_attestation.strict_verification.{field}", True)
 
-    proof = attestation.get("verified_run")
-    if not isinstance(proof, dict):
-        raise GovernanceManifestError("artifact_attestation.verified_run must be an object")
-    if not isinstance(proof.get("run_id"), int) or proof["run_id"] <= 0:
-        raise GovernanceManifestError("artifact_attestation.verified_run.run_id must be positive")
-    if proof.get("event") != "pull_request":
-        raise GovernanceManifestError("artifact_attestation verified proof must be a pull_request run")
-    if not isinstance(proof.get("pull_request"), int) or proof["pull_request"] <= 0:
-        raise GovernanceManifestError("artifact_attestation.verified_run.pull_request must be positive")
-    if proof.get("workflow") != ".github/workflows/ci.yml":
-        raise GovernanceManifestError("artifact attestation proof must use .github/workflows/ci.yml")
-    source_ref = _require_nonempty_text(
-        proof.get("source_ref"), "artifact_attestation.verified_run.source_ref"
-    )
-    if not source_ref.startswith("refs/pull/") or not source_ref.endswith("/merge"):
-        raise GovernanceManifestError("artifact attestation proof source_ref must be a PR merge ref")
-    source_digest = proof.get("source_digest")
-    if not isinstance(source_digest, str) or _SHA40.fullmatch(source_digest) is None:
-        raise GovernanceManifestError("artifact attestation proof source_digest must be a 40-hex commit")
-    if proof.get("runner_environment") != "github-hosted":
-        raise GovernanceManifestError("artifact attestation proof must use a github-hosted runner")
-    if proof.get("canonical_subject_count") != 10:
-        raise GovernanceManifestError("artifact attestation proof must cover exactly 10 canonical wheels")
-    for field in ("attestation_id", "provenance_artifact_id"):
-        if not isinstance(proof.get(field), (str, int)) or str(proof[field]).strip() in {"", "0"}:
-            raise GovernanceManifestError(f"artifact_attestation.verified_run.{field} must be recorded")
-    artifact_digest = proof.get("provenance_artifact_digest")
-    if not isinstance(artifact_digest, str) or _SHA256_PREFIXED.fullmatch(artifact_digest) is None:
-        raise GovernanceManifestError(
-            "artifact attestation provenance artifact digest must be sha256:<64-hex>"
-        )
-    if proof.get("sigstore_media_type") != "application/vnd.dev.sigstore.bundle.v0.3+json":
-        raise GovernanceManifestError("artifact attestation proof must record the Sigstore bundle media type")
-    if proof.get("predicate_type") != "https://slsa.dev/provenance/v1":
-        raise GovernanceManifestError("artifact attestation proof must record SLSA provenance v1")
-    _require_bool(
-        proof.get("verified_with_gh_cli"),
-        "artifact_attestation.verified_run.verified_with_gh_cli",
-        True,
-    )
+    _verify_owner_pr_proof(attestation.get("verified_run"))
+    published = _verify_main_release_proof(attestation.get("main_release_proof"), release_policy)
     _require_nonempty_text(attestation.get("note"), "artifact_attestation.note")
-    return expected_status
+    return expected_status, published
 
 
 def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
     root = Path(root)
     register = _load(root / "repository-governance.v1.json")
     portfolio = _load(root / "portfolio-compatibility.v1.json")
+    release_policy = _load(root / "release-policy.v1.json")
 
     if register.get("schema_version") != "1.0":
         raise GovernanceManifestError("governance schema_version must be 1.0")
@@ -203,7 +245,9 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
     ):
         _require_bool(desired.get(field), f"branch_protection.desired.{field}", True)
 
-    attestation_status = _verify_attestation(gates["artifact_attestation"])
+    attestation_status, published_release = _verify_attestation(
+        gates["artifact_attestation"], release_policy
+    )
 
     package_count, approval_count, ready_count = _portfolio_counts(portfolio)
     archival = gates["historical_repository_archival"]
@@ -243,6 +287,7 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
         human_approvals=approval_count,
         archive_ready=ready_count,
         attestation_status=attestation_status,
+        published_release=published_release,
     )
 
 
@@ -255,7 +300,7 @@ def main() -> int:
         "governance manifest verified: "
         f"gates={receipt.gates} packages={receipt.packages} "
         f"human_approvals={receipt.human_approvals} archive_ready={receipt.archive_ready} "
-        f"attestation={receipt.attestation_status}"
+        f"attestation={receipt.attestation_status} published_release={receipt.published_release}"
     )
     return 0
 
