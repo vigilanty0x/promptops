@@ -82,32 +82,46 @@ jobs:
         run: python -m unittest discover -s "packages/${{ matrix.package }}/tests" -v
       - name: Build package wheel
         run: python -m pip wheel "packages/${{ matrix.package }}" --no-deps --wheel-dir /tmp/wheel
-      - name: Smoke-test package wheel in clean venv
+      - name: Smoke-test package wheel against portfolio contract
         env:
-          PACKAGE: ${{ matrix.package }}
+          PACKAGE_PATH_NAME: ${{ matrix.package }}
         run: |
           python -m venv /tmp/package-wheel-smoke
           /tmp/package-wheel-smoke/bin/python -m pip install --disable-pip-version-check --no-deps /tmp/wheel/*.whl
           /tmp/package-wheel-smoke/bin/python - <<'PY'
           import importlib.metadata as metadata
+          import json
           import os
           from pathlib import Path
           import sys
 
-          package = os.environ["PACKAGE"]
-          distribution = metadata.distribution(package)
+          package_path_name = os.environ["PACKAGE_PATH_NAME"]
+          manifest = json.loads(Path("portfolio-compatibility.v1.json").read_text(encoding="utf-8"))
+          canonical_path = f"packages/{package_path_name}"
+          matches = [item for item in manifest["packages"] if item.get("canonical_path") == canonical_path]
+          assert len(matches) == 1, f"expected one portfolio manifest row for {canonical_path!r}; found {len(matches)}"
+          contract = matches[0]
+          distribution_name = contract["distribution"]
+          expected_version = contract["version"]
+          expected_cli = contract["cli"]
+
+          distribution = metadata.distribution(distribution_name)
+          assert distribution.version == expected_version, (
+              f"installed {distribution_name!r} version {distribution.version!r} "
+              f"does not match portfolio contract {expected_version!r}"
+          )
           entry_points = [
               entry
               for entry in distribution.entry_points
-              if entry.group == "console_scripts" and entry.name == package
+              if entry.group == "console_scripts" and entry.name == expected_cli
           ]
           assert len(entry_points) == 1, (
-              f"expected exactly one console script named {package!r}; "
+              f"expected exactly one console script named {expected_cli!r} for {distribution_name!r}; "
               f"found {[entry.name for entry in distribution.entry_points if entry.group == 'console_scripts']}"
           )
           target = entry_points[0].load()
-          assert callable(target), f"console script target for {package!r} is not callable"
-          executable = Path(sys.prefix) / "bin" / package
+          assert callable(target), f"console script target for {expected_cli!r} is not callable"
+          executable = Path(sys.prefix) / "bin" / expected_cli
           assert executable.is_file(), f"installed console script is missing: {executable}"
           PY
       - name: Upload package wheel evidence
