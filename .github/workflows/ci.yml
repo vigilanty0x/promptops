@@ -30,6 +30,7 @@ jobs:
       - run: python scripts/check.py
       - run: python scripts/check_release_metadata.py
       - run: python scripts/check_python_support.py
+      - run: python scripts/check_build_backend.py
       - run: python scripts/check_workflow_security.py
       - run: python scripts/check_portfolio_compat.py
       - run: python -m unittest discover -s tests -v
