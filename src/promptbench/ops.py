@@ -380,6 +380,27 @@ def dataset_manifest(suites: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _verified_artifact(artifact: Mapping[str, Any], *, kind: str, field: str) -> dict[str, Any]:
+    """Verify one PromptOps content-addressed artifact before trusting fields."""
+
+    payload = dict(_require_mapping(artifact, field))
+    artifact_sha = payload.pop("artifact_sha", None)
+    if (
+        not isinstance(artifact_sha, str)
+        or len(artifact_sha) != 64
+        or any(character not in "0123456789abcdef" for character in artifact_sha)
+    ):
+        raise OpsValidationError(f"{field}.artifact_sha must be a lowercase SHA-256 hex digest")
+    if _digest(payload) != artifact_sha:
+        raise OpsValidationError(f"{field}.artifact_sha does not match artifact content")
+    if payload.get("schema_version") != OPS_SCHEMA_VERSION:
+        raise OpsValidationError(f"{field} uses an unsupported schema_version")
+    if payload.get("kind") != kind:
+        raise OpsValidationError(f"{field} must be a {kind} artifact")
+    payload["artifact_sha"] = artifact_sha
+    return payload
+
+
 def release_manifest(
     *,
     release_version: str,
@@ -387,25 +408,53 @@ def release_manifest(
     scorecards: Sequence[Mapping[str, Any]],
     regressions: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
-    """Bind PromptOps evidence into one deterministic release gate artifact."""
+    """Bind verified PromptOps evidence into one deterministic release gate."""
 
     release_version = _require_text(release_version, "release_version")
-    dataset = _require_mapping(dataset, "dataset")
-    if dataset.get("kind") != "dataset_manifest" or not isinstance(dataset.get("artifact_sha"), str):
-        raise OpsValidationError("dataset must be a dataset_manifest artifact")
-    if not scorecards:
+    verified_dataset = _verified_artifact(dataset, kind="dataset_manifest", field="dataset")
+    datasets = verified_dataset.get("datasets")
+    if not isinstance(datasets, list) or not datasets:
+        raise OpsValidationError("dataset.datasets must be a non-empty array")
+    if not isinstance(scorecards, Sequence) or isinstance(scorecards, (str, bytes)) or not scorecards:
         raise OpsValidationError("release requires at least one scorecard")
-    for artifact in [*scorecards, *regressions]:
-        if not isinstance(artifact, Mapping) or not isinstance(artifact.get("artifact_sha"), str):
-            raise OpsValidationError("release evidence must contain artifact_sha")
-    failed = [item for item in regressions if item.get("passed") is False]
+    if not isinstance(regressions, Sequence) or isinstance(regressions, (str, bytes)):
+        raise OpsValidationError("regressions must be an array")
+
+    # Local import avoids an import-time cycle: routing imports this module's
+    # digest/error primitives, while release validation reuses its full
+    # scorecard contract only when a release gate is actually evaluated.
+    from .routing import validate_scorecard
+
+    verified_scorecards: list[dict[str, Any]] = []
+    for index, scorecard in enumerate(scorecards):
+        try:
+            verified_scorecards.append(validate_scorecard(scorecard))
+        except OpsValidationError as exc:
+            raise OpsValidationError(f"scorecards[{index}]: {exc}") from exc
+
+    verified_regressions: list[dict[str, Any]] = []
+    for index, regression in enumerate(regressions):
+        item = _verified_artifact(regression, kind="regression", field=f"regressions[{index}]")
+        if not isinstance(item.get("passed"), bool):
+            raise OpsValidationError(f"regressions[{index}].passed must be boolean")
+        count = item.get("regression_count")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise OpsValidationError(
+                f"regressions[{index}].regression_count must be a non-negative integer"
+            )
+        if not isinstance(item.get("rows"), list):
+            raise OpsValidationError(f"regressions[{index}].rows must be an array")
+        verified_regressions.append(item)
+
+    failed = [item for item in verified_regressions if item["passed"] is False]
     result: dict[str, Any] = {
         "schema_version": OPS_SCHEMA_VERSION,
         "kind": "release_manifest",
         "release_version": release_version,
-        "dataset_sha": dataset["artifact_sha"],
-        "scorecard_shas": sorted(str(item["artifact_sha"]) for item in scorecards),
-        "regression_shas": sorted(str(item["artifact_sha"]) for item in regressions),
+        "dataset_sha": verified_dataset["artifact_sha"],
+        "scorecard_shas": sorted(item["artifact_sha"] for item in verified_scorecards),
+        "regression_shas": sorted(item["artifact_sha"] for item in verified_regressions),
+        "evidence_hashes_verified": True,
         "regression_gate_passed": not failed,
         "failed_regression_count": len(failed),
     }
