@@ -49,6 +49,10 @@ The PromptOps layer does not call providers. It consumes versioned local JSON ar
 
 The root package and all nine consolidated packages declare `requires-python >=3.11`. The current stable support gate runs the full root and package matrix on **CPython 3.11, 3.12, 3.13, and 3.14**. Root package classifiers advertise those four tested series. Future or pre-release Python series beyond 3.14 are not part of the CI guarantee until they are added to the explicit support contract and pass the same gates.
 
+## Build reproducibility
+
+All ten PEP 517 projects use the same exact build backend contract: `setuptools==83.0.0` with `setuptools.build_meta`. The pin is intentional: CI reproducibility must not silently change because a future setuptools release satisfies an open-ended minimum version. Every matrix job still performs two independent wheel builds under a fixed `SOURCE_DATE_EPOCH` and requires identical SHA-256 output before clean-venv installation and evidence retention.
+
 ## Fair comparison contract
 
 - every candidate receives the same scenario version, order, repeat count, and output limit;
@@ -94,6 +98,7 @@ Operational input or schema errors use exit code 2; report verification failure 
 python scripts/check.py
 python scripts/check_release_metadata.py
 python scripts/check_python_support.py
+python scripts/check_build_backend.py
 python scripts/check_workflow_security.py
 python scripts/check_portfolio_compat.py
 PYTHONPATH=src python -m unittest discover -s tests -v
@@ -101,9 +106,9 @@ PYTHONPATH=src python -m promptbench probe --level functional
 python -m compileall -q src tests scripts
 ```
 
-`check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. `check_python_support.py` binds the root and nine historical `requires-python` declarations to the root classifiers and both explicit CI Python matrices. `check_workflow_security.py` requires explicit read-only workflow permissions, bounded job timeouts, full 40-hex commit pins for every external action, non-persistent checkout credentials, and rejects privileged workflow triggers that are outside this repository's CI contract. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
+`check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. `check_python_support.py` binds the root and nine historical `requires-python` declarations to the root classifiers and both explicit CI Python matrices. `check_build_backend.py` requires every root/historical `pyproject.toml` named by the portfolio manifest to use exactly `setuptools==83.0.0` and `setuptools.build_meta`. `check_workflow_security.py` requires explicit read-only workflow permissions, bounded job timeouts, full 40-hex commit pins for every external action, non-persistent checkout credentials, and rejects privileged workflow triggers that are outside this repository's CI contract. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
 
-CI repeats the complete root and consolidated-package gates on Python 3.11 through 3.14: **4 root jobs + 36 historical-package jobs = 40 jobs**. Every matrix job builds its wheel twice under a fixed `SOURCE_DATE_EPOCH` and requires the two SHA-256 digests to be identical before continuing. The verified wheel is then installed into a fresh virtual environment and only after successful smoke verification uploaded as a uniquely named GitHub Actions artifact retained for 14 days. Historical wheel metadata/version/CLI checks are resolved from `portfolio-compatibility.v1.json`; the root wheel checks installed metadata against `promptbench.__version__` and runs a liveness probe. A non-reproducible, broken, mismatched, or missing wheel therefore fails before evidence retention instead of hiding behind a successful editable install.
+CI repeats the complete root and consolidated-package gates on Python 3.11 through 3.14: **4 root jobs + 36 historical-package jobs = 40 jobs**. Every matrix job builds its wheel twice under a fixed `SOURCE_DATE_EPOCH` and requires the two SHA-256 digests to be identical before continuing. The verified wheel is then installed into a fresh virtual environment and only after successful smoke verification uploaded as a uniquely named GitHub Actions artifact retained for 14 days. Historical wheel metadata/version/CLI checks are resolved from `portfolio-compatibility.v1.json`; the root wheel checks installed metadata against `promptbench.__version__` and runs a liveness probe. A backend-drifted, non-reproducible, broken, mismatched, or missing wheel therefore fails before evidence retention instead of hiding behind a successful editable install.
 
 ## Documentation
 
