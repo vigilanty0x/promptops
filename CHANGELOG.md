@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 - 2026-08-18
+
+- Add deterministic offline scorecard routing with explicit quality, latency, cost, allowlist, and fallback constraints.
+- Verify scorecard schema, rank sequence, winner, finite metrics, and SHA-256 content before routing.
+- Add fail-closed `decision=abstain` routing output and CLI exit code `3` when no candidate qualifies.
+- Preserve per-candidate rejection evidence and content-address every route decision.
+- Consolidate nine audited PromptOps-adjacent repositories under `packages/` with imported-history evidence.
+- Expand CI to verify the root package plus all nine consolidated packages on Python 3.11 and 3.12.
+- Add machine-readable compatibility, consumer-scan, redirect, rollback, and human-approval archive gates.
+- Add verified canonical-development notices to all nine source repositories while leaving them public and unarchived.
+
+Release candidate verification is the full repository CI matrix: root install/checks/portfolio gate/tests/suite validation/functional probe/demo/wheel on Python 3.11 and 3.12, plus install/checks/tests/wheel for each consolidated package on both Python versions.
+
 ## 0.2.0 - 2026-08-17
 
 - Add the offline `promptops` CLI alongside `promptbench`.
