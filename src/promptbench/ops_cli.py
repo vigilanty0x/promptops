@@ -16,8 +16,8 @@ from .ops import (
     compare_reports,
     dataset_manifest,
     jury_consensus,
+    release_manifest,
 )
-from .release_ops import release_manifest
 from .routing import RoutingPolicy, route_scorecard
 
 
