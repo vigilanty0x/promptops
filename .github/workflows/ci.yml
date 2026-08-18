@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  SOURCE_DATE_EPOCH: "315532800"
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -33,8 +36,19 @@ jobs:
       - run: promptbench validate --suite examples/suite.json
       - run: promptbench probe --level functional
       - run: promptbench demo --workspace /tmp/promptbench-demo
-      - name: Build root wheel
-        run: python -m pip wheel . --no-deps --wheel-dir /tmp/wheel
+      - name: Build root wheel twice
+        run: |
+          python -m pip wheel . --no-deps --wheel-dir /tmp/wheel
+          python -m pip wheel . --no-deps --wheel-dir /tmp/wheel-rebuild
+      - name: Verify root wheel is reproducible
+        run: |
+          test "$(find /tmp/wheel -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
+          test "$(find /tmp/wheel-rebuild -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
+          primary_sha="$(sha256sum /tmp/wheel/*.whl | awk '{print $1}')"
+          rebuild_sha="$(sha256sum /tmp/wheel-rebuild/*.whl | awk '{print $1}')"
+          echo "primary_sha=$primary_sha"
+          echo "rebuild_sha=$rebuild_sha"
+          test "$primary_sha" = "$rebuild_sha"
       - name: Smoke-test root wheel in clean venv
         run: |
           python -m venv /tmp/root-wheel-smoke
@@ -81,8 +95,19 @@ jobs:
         run: python "packages/${{ matrix.package }}/scripts/check.py"
       - name: Run package tests
         run: python -m unittest discover -s "packages/${{ matrix.package }}/tests" -v
-      - name: Build package wheel
-        run: python -m pip wheel "packages/${{ matrix.package }}" --no-deps --wheel-dir /tmp/wheel
+      - name: Build package wheel twice
+        run: |
+          python -m pip wheel "packages/${{ matrix.package }}" --no-deps --wheel-dir /tmp/wheel
+          python -m pip wheel "packages/${{ matrix.package }}" --no-deps --wheel-dir /tmp/wheel-rebuild
+      - name: Verify package wheel is reproducible
+        run: |
+          test "$(find /tmp/wheel -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
+          test "$(find /tmp/wheel-rebuild -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
+          primary_sha="$(sha256sum /tmp/wheel/*.whl | awk '{print $1}')"
+          rebuild_sha="$(sha256sum /tmp/wheel-rebuild/*.whl | awk '{print $1}')"
+          echo "primary_sha=$primary_sha"
+          echo "rebuild_sha=$rebuild_sha"
+          test "$primary_sha" = "$rebuild_sha"
       - name: Smoke-test package wheel against portfolio contract
         env:
           PACKAGE_PATH_NAME: ${{ matrix.package }}
