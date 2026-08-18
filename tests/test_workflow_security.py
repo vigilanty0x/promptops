@@ -91,14 +91,14 @@ def workflow_with_release(*, guarded: bool = True) -> str:
 
 
 class WorkflowSecurityTests(unittest.TestCase):
-    def test_current_repository_workflows_match_security_policy(self):
+    def test_current_repository_workflows_match_prepared_candidate_policy(self):
         receipt = validate_workflows(REPO_ROOT)
         self.assertEqual(receipt.workflows, 2)
-        self.assertEqual(receipt.jobs, 5)
-        self.assertGreaterEqual(receipt.external_actions, 12)
-        self.assertEqual(receipt.checkout_steps, 4)
+        self.assertEqual(receipt.jobs, 4)
+        self.assertGreaterEqual(receipt.external_actions, 10)
+        self.assertEqual(receipt.checkout_steps, 3)
         self.assertEqual(receipt.attestation_jobs, 1)
-        self.assertEqual(receipt.release_jobs, 1)
+        self.assertEqual(receipt.release_jobs, 0)
 
     def test_valid_fixture_is_accepted(self):
         jobs, actions, checkouts, attestations, releases = validate_workflow_text(
@@ -132,33 +132,23 @@ class WorkflowSecurityTests(unittest.TestCase):
 
     def test_floating_action_tag_is_rejected(self):
         with self.assertRaisesRegex(WorkflowSecurityError, "full 40-hex"):
-            validate_workflow_text(
-                workflow(action_ref="v7"), path=Path("fixture.yml")
-            )
+            validate_workflow_text(workflow(action_ref="v7"), path=Path("fixture.yml"))
 
     def test_persisted_checkout_credentials_are_rejected(self):
         with self.assertRaisesRegex(WorkflowSecurityError, "persist-credentials"):
-            validate_workflow_text(
-                workflow(persist="true"), path=Path("fixture.yml")
-            )
+            validate_workflow_text(workflow(persist="true"), path=Path("fixture.yml"))
 
     def test_write_permission_is_rejected(self):
         with self.assertRaisesRegex(WorkflowSecurityError, "top-level permissions"):
-            validate_workflow_text(
-                workflow(permission="write"), path=Path("fixture.yml")
-            )
+            validate_workflow_text(workflow(permission="write"), path=Path("fixture.yml"))
 
     def test_missing_timeout_is_rejected(self):
         with self.assertRaisesRegex(WorkflowSecurityError, "timeout-minutes exactly once"):
-            validate_workflow_text(
-                workflow(timeout=None), path=Path("fixture.yml")
-            )
+            validate_workflow_text(workflow(timeout=None), path=Path("fixture.yml"))
 
     def test_excessive_timeout_is_rejected(self):
         with self.assertRaisesRegex(WorkflowSecurityError, "between 1 and 60"):
-            validate_workflow_text(
-                workflow(timeout="120"), path=Path("fixture.yml")
-            )
+            validate_workflow_text(workflow(timeout="120"), path=Path("fixture.yml"))
 
     def test_no_workflows_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
