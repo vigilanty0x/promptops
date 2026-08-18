@@ -3,15 +3,15 @@ requires = ["setuptools==83.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "promptbench-replay"
-version = "0.5.0"
-description = "Reproducible offline prompt and model benchmarking with explicit judges."
+name = "promptops-replay"
+version = "0.6.0"
+description = "PromptOps: reproducible offline prompt and model quality operations with evidence-bound replay."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{name = "vigilanty0x"}]
-keywords = ["prompts", "models", "benchmark", "evaluation", "replay", "promptops", "regression", "routing", "verification", "evidence"]
+keywords = ["promptops", "prompts", "models", "benchmark", "evaluation", "replay", "regression", "routing", "verification", "evidence"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -25,8 +25,8 @@ classifiers = [
 dependencies = []
 
 [project.scripts]
-promptbench = "promptbench.cli:main"
 promptops = "promptbench.ops_cli:main"
+promptbench = "promptbench.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
