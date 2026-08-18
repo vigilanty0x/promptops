@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "repository": "vigilanty0x/promptops",
+  "version": "0.5.0",
+  "tag": "v0.5.0",
+  "source_ref": "refs/heads/main",
+  "source_digest": "c8c6d133e86a119338edbc7b4e9142ce1c525fb5",
+  "release_asset_count": 13,
+  "canonical_wheel_count": 10,
+  "attestation_id": "41262298",
+  "verification_workflow": ".github/workflows/release-verify.yml",
+  "verification_run_id": 32094998702,
+  "verification_pull_request": 27,
+  "source_commit_signature_verified": true,
+  "release_integrity_verified": true,
+  "wheel_provenance_verified": true,
+  "immutable": true
+}
