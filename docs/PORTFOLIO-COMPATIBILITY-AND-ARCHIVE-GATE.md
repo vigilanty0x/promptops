@@ -4,9 +4,9 @@ Date : 2026-08-18
 
 ## État
 
-Les neuf dépôts spécialisés ont été importés avec leur historique dans `vigilanty0x/promptops`, sous `packages/`. La consolidation du code est vérifiée, mais **elle n’autorise pas à elle seule l’archivage des dépôts sources**.
+Les neuf dépôts spécialisés ont été importés avec leur historique dans `vigilanty0x/promptops`, sous `packages/`. La consolidation du code, la compatibilité de package et les avis de redirection sont vérifiés. **Cela n’autorise toujours pas à lui seul l’archivage des dépôts sources.**
 
-Le contrat canonique est `portfolio-compatibility.v1.json`. Le checker `scripts/check_portfolio_compat.py` échoue si le manifeste dérive des `pyproject.toml`, de l’évidence d’import ou si `archive_ready` ne correspond pas exactement aux gates explicites.
+Le contrat canonique est `portfolio-compatibility.v1.json`. Le checker `scripts/check_portfolio_compat.py` échoue si le manifeste dérive des `pyproject.toml`, de l’évidence d’import, des preuves de redirection ou si `archive_ready` ne correspond pas exactement aux gates explicites.
 
 ## Compatibilité conservée
 
@@ -35,16 +35,19 @@ Cette observation est **bornée**. Elle ne prouve pas l’absence de :
 
 Le manifeste encode donc `consumer_scan_completed=true` et `exact_reference_matches=0`, mais ne transforme pas cette observation en certitude universelle.
 
-## Gate de redirection
+## Gate de redirection — VERIFIED 9/9
 
-`redirect_ready` reste faux tant que le dépôt source ne contient pas une indication explicite vers la nouvelle localisation canonique dans PromptOps. Une redirection acceptable doit au minimum :
+Les neuf dépôts sources contiennent désormais un avis en tête de `README.md` qui :
 
-1. annoncer que le développement canonique a été consolidé dans `vigilanty0x/promptops` ;
-2. indiquer le chemin `packages/<nom>` ;
-3. conserver l’historique et ne pas supprimer le dépôt source ;
-4. ne pas prétendre qu’une publication PyPI ou un transfert de package a eu lieu si ce n’est pas prouvé.
+1. annonce que le développement canonique a été consolidé dans `vigilanty0x/promptops` ;
+2. indique le chemin `packages/<nom>` ;
+3. conserve le dépôt source et son historique ;
+4. confirme que distribution et CLI `0.1.0` gardent leurs noms historiques ;
+5. ne prétend pas qu’une publication PyPI ou un transfert de package a eu lieu.
 
-L’ajout d’un avis de consolidation est réversible et doit précéder toute décision d’archivage.
+Chaque avis a été livré par une PR source dédiée, a passé la CI du dépôt source, puis a été fusionné. Le manifeste enregistre pour chaque source le numéro de PR, le SHA de merge, `README.md` et `ci=success`. Le checker exige ces preuves avant d’accepter `redirect_ready=true`.
+
+Verdict : **REDIRECT GATE VERIFIED 9/9**.
 
 ## Rollback
 
@@ -72,8 +75,8 @@ Un package n’est `archive_ready=true` que si **tous** les champs suivants sont
 
 De plus, le checker refuse un archivage si `exact_reference_matches` est non nul.
 
-Au moment de ce document, `redirect_ready=false` et `human_archive_approval=false` pour les neuf sources. Le verdict est donc volontairement : **ARCHIVE GATE BLOCKED**.
+Au moment de ce document, les quatre gates techniques sont vrais pour les neuf sources : compatibilité, scan consommateurs borné, redirection et rollback. `human_archive_approval=false` reste volontairement faux. Le verdict est donc : **ARCHIVE GATE BLOCKED — HUMAN APPROVAL REQUIRED**.
 
 ## Ce que BLOCKED signifie
 
-`BLOCKED` ne signifie pas que la consolidation a échoué. Le code est consolidé et testé. Cela signifie uniquement que l’action distincte et potentiellement perturbatrice d’archiver les anciens dépôts n’a pas encore toutes ses preuves.
+`BLOCKED` ne signifie pas que la consolidation a échoué. Le code est consolidé, testé et redirigé. Cela signifie uniquement que l’action distincte d’archiver les anciens dépôts n’a pas reçu l’approbation humaine explicite requise par le contrat.

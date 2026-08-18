@@ -79,5 +79,5 @@
   ],
   "state": "MERGED",
   "archiveGate": "BLOCKED",
-  "reason": "Consolidation and package compatibility are verified; source repository redirects and explicit human archive approval are not yet complete."
+  "reason": "Consolidation, package compatibility, bounded consumer scan, source repository redirects, and rollback are verified; explicit human archive approval is still required."
 }

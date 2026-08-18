@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Validate the consolidated portfolio compatibility/archive contract.
 
-This checker is deliberately offline. External consumer-search evidence is
-recorded in the manifest, while CI proves that the recorded canonical package
-identity still matches the repository and that archive readiness cannot become
-true unless every explicit gate is true.
+This checker is deliberately offline. External consumer-search and source-repo
+redirect evidence are recorded in the manifest, while CI proves that the
+recorded canonical package identity still matches the repository and that
+archive readiness cannot become true unless every explicit gate is true.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import sys
 import tomllib
 
@@ -34,6 +35,7 @@ REQUIRED_GATES = (
     "rollback_documented",
     "human_archive_approval",
 )
+SHA40 = re.compile(r"^[0-9a-f]{40}$")
 
 
 def fail(message: str) -> None:
@@ -45,6 +47,23 @@ def load_json(path: Path) -> dict:
     if not isinstance(value, dict):
         fail(f"{path.name}: root must be an object")
     return value
+
+
+def validate_redirect_evidence(name: str, item: dict) -> None:
+    evidence = item.get("redirect_evidence")
+    if item.get("redirect_ready") is not True:
+        return
+    if not isinstance(evidence, dict):
+        fail(f"{name}: redirect_ready requires redirect_evidence")
+    if not isinstance(evidence.get("pr"), int) or evidence["pr"] <= 0:
+        fail(f"{name}: redirect PR must be a positive integer")
+    if evidence.get("path") != "README.md":
+        fail(f"{name}: redirect notice must be recorded on README.md")
+    if evidence.get("ci") != "success":
+        fail(f"{name}: redirect_ready requires successful source-repo CI evidence")
+    merge_sha = evidence.get("merge_sha")
+    if not isinstance(merge_sha, str) or SHA40.fullmatch(merge_sha) is None:
+        fail(f"{name}: redirect merge_sha must be a 40-character lowercase SHA")
 
 
 def main() -> int:
@@ -112,6 +131,7 @@ def main() -> int:
         for gate in REQUIRED_GATES:
             if not isinstance(item.get(gate), bool):
                 fail(f"{name}: {gate} must be explicit boolean")
+        validate_redirect_evidence(name, item)
         computed_ready = all(item[gate] for gate in REQUIRED_GATES)
         if item.get("archive_ready") is not computed_ready:
             fail(f"{name}: archive_ready must equal all explicit gates")
@@ -126,7 +146,9 @@ def main() -> int:
         for item in packages
         if item["archive_ready"] is False
     )
+    redirects = sum(1 for item in packages if item["redirect_ready"] is True)
     print(f"portfolio compatibility: {len(packages)} packages verified")
+    print(f"redirect gate: {redirects}/{len(packages)} verified")
     print(f"archive gate: {'READY' if not blocked else 'BLOCKED'}")
     if blocked:
         print("blocked repositories: " + ", ".join(blocked))
