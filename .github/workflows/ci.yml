@@ -30,6 +30,14 @@ jobs:
       - run: promptbench demo --workspace /tmp/promptbench-demo
       - name: Build root wheel
         run: python -m pip wheel . --no-deps --wheel-dir /tmp/wheel
+      - name: Smoke-test root wheel in clean venv
+        run: |
+          python -m venv /tmp/root-wheel-smoke
+          /tmp/root-wheel-smoke/bin/python -m pip install --disable-pip-version-check --no-deps /tmp/wheel/*.whl
+          /tmp/root-wheel-smoke/bin/python -c "import importlib.metadata as m, promptbench; assert m.version('promptbench-replay') == promptbench.__version__"
+          /tmp/root-wheel-smoke/bin/promptbench --help >/dev/null
+          /tmp/root-wheel-smoke/bin/promptbench probe --level liveness >/dev/null
+          /tmp/root-wheel-smoke/bin/promptops --help >/dev/null
       - name: Upload root wheel evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -67,6 +75,11 @@ jobs:
         run: python -m unittest discover -s "packages/${{ matrix.package }}/tests" -v
       - name: Build package wheel
         run: python -m pip wheel "packages/${{ matrix.package }}" --no-deps --wheel-dir /tmp/wheel
+      - name: Smoke-test package wheel in clean venv
+        run: |
+          python -m venv /tmp/package-wheel-smoke
+          /tmp/package-wheel-smoke/bin/python -m pip install --disable-pip-version-check --no-deps /tmp/wheel/*.whl
+          /tmp/package-wheel-smoke/bin/${{ matrix.package }} --help >/dev/null
       - name: Upload package wheel evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
