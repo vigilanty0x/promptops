@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "observed_at": "2026-08-18",
   "repository": "vigilanty0x/promptops",
-  "observed_main_sha": "ab53613c2f48abb71da2bece10cc5ae92e3de417",
+  "observed_main_sha": "ba467166da0f49587bb055fa4e12fc9098866402",
   "gates": {
     "branch_protection": {
       "status": "BLOCKED_TOOLING",
@@ -21,11 +21,12 @@
       "close_when": "GitHub reports main protected=true and the required CI rule is enabled."
     },
     "artifact_attestation": {
-      "status": "IMPLEMENTED_VERIFIED_OWNER_PR",
+      "status": "IMPLEMENTED_VERIFIED_PR_AND_MAIN_RELEASE",
       "desired": true,
       "enabled_by_this_session": true,
       "owner_same_repo_pr_verified": true,
       "main_push_configured": true,
+      "main_push_verified_via_release": true,
       "external_fork_pr_attestation_allowed": false,
       "verified_run": {
         "run_id": 32091517015,
@@ -43,6 +44,27 @@
         "predicate_type": "https://slsa.dev/provenance/v1",
         "verified_with_gh_cli": true
       },
+      "main_release_proof": {
+        "release_verification_run_id": 32094998702,
+        "release_verification_workflow": ".github/workflows/release-verify.yml",
+        "verification_event": "pull_request",
+        "verification_pull_request": 27,
+        "published_version": "0.5.0",
+        "published_tag": "v0.5.0",
+        "source_ref": "refs/heads/main",
+        "source_digest": "c8c6d133e86a119338edbc7b4e9142ce1c525fb5",
+        "canonical_subject_count": 10,
+        "release_asset_count": 13,
+        "attestation_id": "41262298",
+        "release_tag_matches_source": true,
+        "source_commit_signature_verified": true,
+        "published_release_integrity_verified": true,
+        "published_wheel_provenance_verified": true,
+        "verification_token_permissions": {
+          "contents": "read",
+          "metadata": "read"
+        }
+      },
       "strict_verification": {
         "repository_required": true,
         "signer_workflow_required": true,
@@ -50,8 +72,8 @@
         "source_digest_required": true,
         "deny_self_hosted_runners": true
       },
-      "main_push_readback": "TOOL_LIMITED",
-      "note": "The owner same-repository PR mechanism was executed end-to-end: 40 verified wheel artifacts collapsed to 10 byte-identical canonical subjects, GitHub/Sigstore SLSA provenance was generated, every canonical wheel passed gh attestation verify with repository/workflow/ref/SHA/runner policy, and the Sigstore bundle plus receipt was downloaded and inspected. The same job is configured for main pushes; this session's connector does not expose a reliable push-run listing/readback endpoint."
+      "main_push_readback": "VERIFIED_VIA_PUBLISHED_RELEASE",
+      "note": "The owner same-repository PR attestation mechanism was first verified end-to-end on PR #25. The main-push path was then independently verified through the immutable GitHub Release v0.5.0: a read-only workflow downloaded all 13 published assets, resolved the tag to source commit c8c6d133e86a119338edbc7b4e9142ce1c525fb5, verified the GitHub commit signature, checked the release receipt and every SHA-256, extracted the published Sigstore/SLSA bundle, and re-ran gh attestation verify successfully for all 10 canonical wheels."
     },
     "historical_repository_archival": {
       "status": "BLOCKED_HUMAN_APPROVAL",
