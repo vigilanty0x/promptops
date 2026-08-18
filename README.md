@@ -97,7 +97,7 @@ python -m compileall -q src tests scripts
 
 `check_release_metadata.py` fails closed when the root package version drifts between `pyproject.toml`, `promptbench.__version__`, the newest SemVer changelog entry, the current migration guide, or the README release example/link. The general static checker parses every root `scripts/*.py` file so guard scripts are part of the public CI boundary too.
 
-CI repeats validation on Python 3.11 and 3.12, enforces release-metadata and portfolio gates, runs the example suite, exercises the counter-proof and demo, tests all imported packages, and builds wheels.
+CI repeats validation on Python 3.11 and 3.12, enforces release-metadata and portfolio gates, runs the example suite, exercises the counter-proof and demo, and tests all imported packages. Every successful root/package matrix job also builds its wheel and uploads that exact wheel as a uniquely named GitHub Actions artifact retained for 14 days; missing wheel output fails the job instead of silently producing no evidence.
 
 ## Documentation
 
