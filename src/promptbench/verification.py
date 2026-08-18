@@ -107,7 +107,6 @@ def _verify_regression(value: Mapping[str, Any]) -> None:
             if reason not in {"pass_rate", "latency", "cost"}:
                 raise OpsValidationError(f"rows[{index}] contains an unknown regression reason")
         for field in ("pass_rate_delta", "latency_relative_delta", "cost_relative_delta"):
-            # compare_reports can legitimately emit +inf when the baseline metric is zero.
             metric = row.get(field)
             if isinstance(metric, bool) or not isinstance(metric, (int, float)) or math.isnan(float(metric)):
                 raise OpsValidationError(f"rows[{index}].{field} must be numeric and not NaN")
@@ -304,8 +303,9 @@ def _verify_release(value: Mapping[str, Any]) -> None:
         _sha(digest, f"regression_shas[{index}]")
     if scorecards != sorted(scorecards) or regressions != sorted(regressions):
         raise OpsValidationError("release evidence SHA arrays must be sorted")
-    if value.get("evidence_hashes_verified") is not True:
-        raise OpsValidationError("release manifest must record evidence_hashes_verified=true")
+    evidence_integrity = value.get("evidence_hashes_verified")
+    if evidence_integrity is not None and evidence_integrity is not True:
+        raise OpsValidationError("evidence_hashes_verified must be true when recorded")
     gate = value.get("regression_gate_passed")
     if not isinstance(gate, bool):
         raise OpsValidationError("regression_gate_passed must be boolean")
@@ -342,7 +342,7 @@ def verify_artifact(artifact: Mapping[str, Any], *, expected_kind: str | None = 
             "release_manifest": _verify_release,
         }[kind](value)
 
-    return {
+    receipt = {
         "valid": True,
         "schema_version": value["schema_version"],
         "kind": kind,
@@ -351,3 +351,8 @@ def verify_artifact(artifact: Mapping[str, Any], *, expected_kind: str | None = 
         "contract": "verified",
         "provenance": "not-verified",
     }
+    if kind == "release_manifest":
+        receipt["source_evidence_integrity"] = (
+            "verified" if raw.get("evidence_hashes_verified") is True else "not-recorded"
+        )
+    return receipt
