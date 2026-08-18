@@ -25,7 +25,9 @@ ATTEST_PERMISSIONS = {
     "attestations": "write",
     "artifact-metadata": "write",
 }
+RELEASE_PERMISSIONS = {"contents": "write"}
 ATTEST_JOB = "attest-wheels"
+RELEASE_JOB = "publish-release"
 
 
 class WorkflowSecurityError(ValueError):
@@ -39,6 +41,7 @@ class WorkflowSecurityReceipt:
     external_actions: int
     checkout_steps: int
     attestation_jobs: int
+    release_jobs: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,7 +172,41 @@ def _verify_attestation_job(
     return 1
 
 
-def validate_workflow_text(text: str, *, path: Path) -> tuple[int, int, int, int]:
+def _verify_release_job(
+    lines: list[str], jobs: list[tuple[str, int, int]], permission_blocks: list[PermissionBlock], *, path: Path
+) -> int:
+    matches = [(name, start, end) for name, start, end in jobs if name == RELEASE_JOB]
+    if not matches:
+        return 0
+    if len(matches) != 1:
+        raise WorkflowSecurityError(f"{path.name}: {RELEASE_JOB} must appear at most once")
+    _name, start, end = matches[0]
+    text = "\n".join(lines[start:end])
+    required_fragments = (
+        "needs: [verify, verify-consolidated-package, attest-wheels]",
+        "runs-on: ubuntu-latest",
+        "github.event_name == 'push'",
+        "github.ref == 'refs/heads/main'",
+        "github.actor == github.repository_owner",
+        "release-policy.v1.json",
+        "gh release create",
+        "gh release view",
+        '--target "$GITHUB_SHA"',
+    )
+    for fragment in required_fragments:
+        if fragment not in text:
+            raise WorkflowSecurityError(
+                f"{path.name}: {RELEASE_JOB} is missing required guard/configuration {fragment!r}"
+            )
+    blocks = [block for block in permission_blocks if _job_for_line(block.line, jobs) == RELEASE_JOB]
+    if len(blocks) != 1 or blocks[0].indent != 4 or blocks[0].values != RELEASE_PERMISSIONS:
+        raise WorkflowSecurityError(
+            f"{path.name}: {RELEASE_JOB} permissions must be exactly {RELEASE_PERMISSIONS}"
+        )
+    return 1
+
+
+def validate_workflow_text(text: str, *, path: Path) -> tuple[int, int, int, int, int]:
     if "\t" in text:
         raise WorkflowSecurityError(f"{path.name}: tabs are not allowed in workflow YAML")
     lines = text.splitlines()
@@ -198,17 +235,17 @@ def validate_workflow_text(text: str, *, path: Path) -> tuple[int, int, int, int
         raise WorkflowSecurityError(
             f"{path.name}: top-level permissions must be exactly {BASE_PERMISSIONS}"
         )
+    allowed_job_permissions = {ATTEST_JOB, RELEASE_JOB}
     for block in permission_blocks:
         if block.indent == 0:
             continue
         job = _job_for_line(block.line, jobs)
-        if job != ATTEST_JOB:
+        if job not in allowed_job_permissions:
             raise WorkflowSecurityError(
-                f"{path.name}: job-level permissions are only allowed for {ATTEST_JOB}; got {job!r}"
+                f"{path.name}: job-level permissions are only allowed for {sorted(allowed_job_permissions)}; got {job!r}"
             )
-    attestation_jobs = _verify_attestation_job(
-        lines, jobs, permission_blocks, path=path
-    )
+    attestation_jobs = _verify_attestation_job(lines, jobs, permission_blocks, path=path)
+    release_jobs = _verify_release_job(lines, jobs, permission_blocks, path=path)
 
     external_actions = 0
     checkout_steps = 0
@@ -248,28 +285,30 @@ def validate_workflow_text(text: str, *, path: Path) -> tuple[int, int, int, int
         raise WorkflowSecurityError(f"{path.name}: workflow has no external action references to verify")
     if checkout_steps == 0:
         raise WorkflowSecurityError(f"{path.name}: workflow must contain an actions/checkout step")
-    return len(jobs), external_actions, checkout_steps, attestation_jobs
+    return len(jobs), external_actions, checkout_steps, attestation_jobs, release_jobs
 
 
 def validate_workflows(root: Path = ROOT) -> WorkflowSecurityReceipt:
     workflows = _workflow_paths(Path(root))
-    job_count = action_count = checkout_count = attestation_count = 0
+    job_count = action_count = checkout_count = attestation_count = release_count = 0
     for path in workflows:
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as exc:
             raise WorkflowSecurityError(f"cannot read workflow: {path.name}") from exc
-        jobs, actions, checkouts, attestations = validate_workflow_text(text, path=path)
+        jobs, actions, checkouts, attestations, releases = validate_workflow_text(text, path=path)
         job_count += jobs
         action_count += actions
         checkout_count += checkouts
         attestation_count += attestations
+        release_count += releases
     return WorkflowSecurityReceipt(
         workflows=len(workflows),
         jobs=job_count,
         external_actions=action_count,
         checkout_steps=checkout_count,
         attestation_jobs=attestation_count,
+        release_jobs=release_count,
     )
 
 
@@ -282,7 +321,7 @@ def main() -> int:
         "workflow security verified: "
         f"workflows={receipt.workflows} jobs={receipt.jobs} "
         f"external_actions={receipt.external_actions} checkout_steps={receipt.checkout_steps} "
-        f"attestation_jobs={receipt.attestation_jobs}"
+        f"attestation_jobs={receipt.attestation_jobs} release_jobs={receipt.release_jobs}"
     )
     return 0
 
