@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import io
 import json
 from pathlib import Path
@@ -78,6 +77,22 @@ class BundleVerificationTests(unittest.TestCase):
         self.assertEqual(receipt["observed_failed_regression_count"], 1)
         self.assertEqual(receipt["expected_unique_evidence_count"], 3)
         self.assertEqual(receipt["provided_unique_evidence_count"], 3)
+        self.assertEqual(receipt["regression_reference_count"], 1)
+        self.assertEqual(receipt["unique_regression_count"], 1)
+
+    def test_repeated_red_regression_reference_uses_one_file_but_preserves_gate_count(self):
+        _, dataset, card, regression = evidence(red=True)
+        release = release_manifest(
+            release_version="0.4.0",
+            dataset=dataset,
+            scorecards=[card],
+            regressions=[regression, regression],
+        )
+        receipt = verify_release_bundle(release, [dataset, card, regression])
+        self.assertEqual(receipt["regression_reference_count"], 2)
+        self.assertEqual(receipt["unique_regression_count"], 1)
+        self.assertEqual(receipt["observed_failed_regression_count"], 2)
+        self.assertFalse(receipt["release_gate_passed"])
 
     def test_missing_evidence_fails_closed(self):
         release, dataset, _, regression = evidence()
