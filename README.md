@@ -30,7 +30,7 @@ promptops regress baseline.json current.json --pass-rate-drop 0.02 -o regression
 promptops jury report-a.json report-b.json report-c.json -o jury.json
 promptops datasets suite-v1.json suite-v2.json -o datasets.json
 promptops route scorecard.json --min-pass-rate 0.9 --max-latency-ms 500 --max-cost-microunits 10000 --fallbacks 1 -o route.json
-promptops release --version 0.2.0 --dataset datasets.json --scorecard scorecard.json --regression regression.json -o release.json
+promptops release --version 0.3.0 --dataset datasets.json --scorecard scorecard.json --regression regression.json -o release.json
 ```
 
 `promptops route` verifies the scorecard SHA before making a decision. It preserves scorecard rank order, applies only the explicit quality/latency/cost/allowlist constraints supplied by the operator, and emits `decision=abstain` when no candidate satisfies them. It never calls a provider or guesses missing capabilities.
@@ -94,6 +94,8 @@ CI repeats validation on Python 3.11 and 3.12, runs the example suite, exercises
 - [Architecture](docs/ARCHITECTURE.md)
 - [Suite and report schemas](docs/SCHEMA.md)
 - [PromptOps evidence contracts](docs/PROMPTOPS.md)
+- [Migration to 0.3](MIGRATION-0.3.md)
+- [Portfolio compatibility/archive gate](docs/PORTFOLIO-COMPATIBILITY-AND-ARCHIVE-GATE.md)
 - [Methodology and limits](docs/METHODOLOGY.md)
 - [Safety](docs/SAFETY.md)
 - [Contributing](CONTRIBUTING.md)

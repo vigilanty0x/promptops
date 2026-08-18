@@ -79,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     route.add_argument("--fallbacks", type=int, default=0)
     route.add_argument("-o", "--output")
 
-    release = sub.add_parser("release", help="bind PromptOps evidence into a release manifest")
+    release = sub.add_parser("release", help="bind verified PromptOps evidence into a release manifest")
     release.add_argument("--version", required=True)
     release.add_argument("--dataset", required=True)
     release.add_argument("--scorecard", action="append", required=True)
