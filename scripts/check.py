@@ -14,8 +14,9 @@ TOKEN = re.compile(r"(?:ghp|github_pat)_[A-Za-z0-9_]{20,}")
 
 
 def main() -> int:
-    python_files = sorted((ROOT / "src").rglob("*.py")) + sorted((ROOT / "tests").rglob("*.py"))
-    python_files += [ROOT / "scripts" / "check.py"]
+    python_files = sorted((ROOT / "src").rglob("*.py"))
+    python_files += sorted((ROOT / "tests").rglob("*.py"))
+    python_files += sorted((ROOT / "scripts").glob("*.py"))
     for path in python_files:
         ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     for path in sorted((ROOT / "examples").glob("*.json")):
