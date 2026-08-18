@@ -12,7 +12,7 @@ PromptOps extends PromptBench without changing the benchmark producer/judge cont
 | `jury_consensus` | 1..256 verified reports | deterministic Borda-style consensus | no |
 | `dataset_manifest` | versioned suites | bind datasets and versions | no |
 | `route_decision` | one verified scorecard + explicit policy | choose an eligible candidate or abstain | yes |
-| `release_manifest` | dataset + scorecards + regressions | bind release evidence | yes |
+| `release_manifest` | verified dataset + scorecards + regressions | bind release evidence | yes |
 
 Every artifact carries `schema_version=1.0`, a `kind`, and an `artifact_sha` computed over canonical JSON before the digest field is added.
 
@@ -64,6 +64,10 @@ Failure corpora keep bounded failure metadata: run id, candidate, scenario, diff
 
 ## Release gate
 
-A release manifest binds one dataset manifest, one or more scorecards, and zero or more regression artifacts. It fails closed when any supplied regression artifact has `passed=false`.
+A release manifest binds one dataset manifest, one or more scorecards, and zero or more regression artifacts. Before reading any regression `passed` field, the 0.3 release path recomputes every supplied artifact SHA and validates its expected kind/schema. Scorecards additionally pass the full routing scorecard validator.
 
-This is an evidence gate, not a deployment mechanism. It does not publish packages, call provider APIs, or change GitHub settings.
+This prevents a stale SHA from being reused after changing a winner, dataset content, or regression verdict. A tampered release input is an invalid input and the CLI exits `2`; a genuine, hash-valid regression with `passed=false` keeps the release gate red and returns `3`.
+
+Successful release manifests record `evidence_hashes_verified=true`. This is integrity validation of the supplied local evidence, not cryptographic provenance or remote attestation.
+
+This remains an evidence gate, not a deployment mechanism. It does not publish packages, call provider APIs, or change GitHub settings.
