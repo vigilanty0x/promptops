@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
+from .bundle_verification import verify_release_bundle
 from .ops import (
     OpsValidationError,
     RegressionThresholds,
@@ -86,6 +87,14 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--kind", choices=ARTIFACT_KINDS)
     verify.add_argument("-o", "--output")
 
+    bundle = sub.add_parser(
+        "verify-bundle",
+        help="verify a release manifest against explicit local evidence artifacts",
+    )
+    bundle.add_argument("release")
+    bundle.add_argument("--artifact", action="append", required=True)
+    bundle.add_argument("-o", "--output")
+
     route = sub.add_parser("route", help="route from one verified PromptOps scorecard")
     route.add_argument("scorecard")
     route.add_argument("--min-pass-rate", type=float, default=0.0)
@@ -125,6 +134,11 @@ def main(argv: list[str] | None = None) -> int:
             value = dataset_manifest([_load(path) for path in args.suites])
         elif args.command == "verify":
             value = verify_artifact(_load(args.artifact), expected_kind=args.kind)
+        elif args.command == "verify-bundle":
+            value = verify_release_bundle(
+                _load(args.release),
+                [_load(path) for path in args.artifact],
+            )
         elif args.command == "route":
             policy = RoutingPolicy(
                 min_pass_rate=args.min_pass_rate,

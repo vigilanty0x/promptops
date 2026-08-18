@@ -41,6 +41,24 @@ A successful verification receipt reports:
 
 The last field is intentional. Local hash and contract verification does **not** prove who created the artifact, that it came from a trusted machine, or that its source evidence is remotely attested. Invalid/tampered/contract-inconsistent artifacts return CLI exit code `2`.
 
+## Release bundle verification
+
+`promptops verify-bundle release.json --artifact ...` verifies that a stored release manifest is actually backed by the explicit local evidence supplied with it.
+
+The command deliberately does not scan a directory and does not fetch remote files. Callers explicitly name each dataset manifest, scorecard, and regression artifact. The verifier:
+
+1. verifies the release manifest itself with `promptops verify` semantics;
+2. verifies every supplied evidence artifact independently;
+3. requires the unique `(kind, artifact_sha)` evidence set to exactly match the dataset, scorecard, and regression SHA references in the release manifest;
+4. rejects duplicate supplied evidence and evidence kinds that a release does not reference;
+5. counts the supplied hash-valid regressions whose `passed=false` and requires that count to equal `failed_regression_count` and the release gate.
+
+This catches a release manifest that has been re-hashed into internal consistency while no longer telling the truth about the evidence files it references.
+
+Bundle verification is bounded to 1024 explicitly supplied evidence artifacts. A successful receipt reports `integrity=verified`, `contract=verified`, `linkage=verified`, and `provenance=not-verified`.
+
+A coherent bundle may intentionally contain a red release gate. Verification answers whether the bundle is internally linked and truthful, not whether it should be deployed. Therefore a coherent red bundle returns exit code `0` with `release_gate_passed=false`. Missing, extra, duplicate, tampered, or contradictory evidence returns `2`.
+
 ## Regression contract
 
 Three explicit tolerances are supported:
@@ -89,10 +107,10 @@ Failure corpora keep bounded failure metadata: run id, candidate, scenario, diff
 
 ## Release gate
 
-A release manifest binds one dataset manifest, one or more scorecards, and zero or more regression artifacts. Before reading any regression `passed` field, the 0.3 release path recomputes every supplied artifact SHA and validates its expected kind/schema. Scorecards additionally pass the full routing scorecard validator.
+A release manifest binds one dataset manifest, one or more scorecards, and zero or more regression artifacts. Before reading any regression `passed` field, the current release path recomputes every supplied artifact SHA and validates its expected kind/schema. Scorecards additionally pass the full routing scorecard validator.
 
 This prevents a stale SHA from being reused after changing a winner, dataset content, or regression verdict. A tampered release input is an invalid input and the CLI exits `2`; a genuine, hash-valid regression with `passed=false` keeps the release gate red and returns `3`.
 
-Successful release manifests record `evidence_hashes_verified=true`. This is integrity validation of the supplied local evidence, not cryptographic provenance or remote attestation.
+Successful release manifests record `evidence_hashes_verified=true`. This is integrity validation of the supplied local evidence, not cryptographic provenance or remote attestation. Historical pre-0.3 manifests that never recorded the field remain verifiable as `source_evidence_integrity=not-recorded` rather than being assigned a newer guarantee retroactively.
 
 This remains an evidence gate, not a deployment mechanism. It does not publish packages, call provider APIs, or change GitHub settings.
