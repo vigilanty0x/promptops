@@ -1,8 +1,9 @@
 """Validate the explicit GitHub release publication policy.
 
-The policy intentionally separates a prepared package version from permission to
-publish a GitHub Release. A future version bump therefore cannot silently reuse
-an old automatic publication decision.
+`release-policy.v1.json` is the next/current publication authorization, while
+`published-release.v1.json` records the latest immutable release that has already
+been independently read back and verified.  Keeping those roles separate lets a
+release PR prepare N+1 without pretending N+1 is already public.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "release-policy.v1.json"
+PUBLISHED_PATH = ROOT / "published-release.v1.json"
 PYPROJECT_PATH = ROOT / "pyproject.toml"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -38,6 +40,8 @@ class ReleasePublishPolicyError(ValueError):
 class ReleasePublishReceipt:
     version: str
     tag: str
+    latest_verified_version: str
+    latest_verified_tag: str
     required_jobs: int
     canonical_wheels: int
     release_note_lines: int
@@ -60,6 +64,12 @@ def _require(value: object, expected: object, field: str) -> None:
         raise ReleasePublishPolicyError(f"{field} must equal {expected!r}; got {value!r}")
 
 
+def _version_tuple(value: object, field: str) -> tuple[int, int, int]:
+    if not isinstance(value, str) or SEMVER.fullmatch(value) is None:
+        raise ReleasePublishPolicyError(f"{field} must be stable SemVer X.Y.Z")
+    return tuple(int(part) for part in value.split("."))  # type: ignore[return-value]
+
+
 def _release_notes(changelog: str, version: str) -> list[str]:
     lines = changelog.splitlines()
     header = re.compile(rf"^## {re.escape(version)} - \d{{4}}-\d{{2}}-\d{{2}}$")
@@ -80,9 +90,36 @@ def _release_notes(changelog: str, version: str) -> list[str]:
     return notes
 
 
+def _validate_published_record(record: dict) -> tuple[str, str, tuple[int, int, int]]:
+    _require(record.get("schema_version"), "1.0", "published-release schema_version")
+    _require(record.get("repository"), EXPECTED_REPOSITORY, "published-release repository")
+    version = record.get("version")
+    version_tuple = _version_tuple(version, "published-release version")
+    tag = record.get("tag")
+    _require(tag, f"v{version}", "published-release tag")
+    _require(record.get("source_ref"), "refs/heads/main", "published-release source_ref")
+    source_digest = record.get("source_digest")
+    if not isinstance(source_digest, str) or re.fullmatch(r"[0-9a-f]{40}", source_digest) is None:
+        raise ReleasePublishPolicyError("published-release source_digest must be lowercase 40-hex")
+    _require(record.get("release_asset_count"), 13, "published-release release_asset_count")
+    _require(record.get("canonical_wheel_count"), 10, "published-release canonical_wheel_count")
+    attestation_id = record.get("attestation_id")
+    if not isinstance(attestation_id, str) or not attestation_id.isdigit():
+        raise ReleasePublishPolicyError("published-release attestation_id must be numeric text")
+    for field in (
+        "source_commit_signature_verified",
+        "release_integrity_verified",
+        "wheel_provenance_verified",
+        "immutable",
+    ):
+        _require(record.get(field), True, f"published-release {field}")
+    return version, tag, version_tuple
+
+
 def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
     root = Path(root)
     policy = _load_json(root / POLICY_PATH.name)
+    published = _load_json(root / PUBLISHED_PATH.name)
     try:
         pyproject = tomllib.loads((root / PYPROJECT_PATH.name).read_text(encoding="utf-8"))
         changelog = (root / CHANGELOG_PATH.name).read_text(encoding="utf-8")
@@ -93,10 +130,19 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
     _require(policy.get("schema_version"), "1.0", "schema_version")
     _require(policy.get("repository"), EXPECTED_REPOSITORY, "repository")
     version = policy.get("version")
-    if not isinstance(version, str) or SEMVER.fullmatch(version) is None:
-        raise ReleasePublishPolicyError("version must be stable SemVer X.Y.Z")
+    version_tuple = _version_tuple(version, "version")
     tag = policy.get("tag")
     _require(tag, f"v{version}", "tag")
+
+    latest_version, latest_tag, latest_tuple = _validate_published_record(published)
+    if version_tuple < latest_tuple:
+        raise ReleasePublishPolicyError(
+            f"candidate version {version} must not be older than latest verified release {latest_version}"
+        )
+    if version_tuple == latest_tuple and tag != latest_tag:
+        raise ReleasePublishPolicyError(
+            "candidate at the latest verified version must use the exact verified tag"
+        )
 
     project = pyproject.get("project")
     if not isinstance(project, dict):
@@ -155,6 +201,8 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
     return ReleasePublishReceipt(
         version=version,
         tag=tag,
+        latest_verified_version=latest_version,
+        latest_verified_tag=latest_tag,
         required_jobs=len(EXPECTED_REQUIRES),
         canonical_wheels=EXPECTED_ASSETS["canonical_wheel_count"],
         release_note_lines=len(notes),
@@ -168,7 +216,8 @@ def main() -> int:
         raise SystemExit(f"release publish policy gate: {exc}") from exc
     print(
         "release publish policy verified: "
-        f"version={receipt.version} tag={receipt.tag} "
+        f"candidate={receipt.version}@{receipt.tag} "
+        f"latest_verified={receipt.latest_verified_version}@{receipt.latest_verified_tag} "
         f"required_jobs={receipt.required_jobs} canonical_wheels={receipt.canonical_wheels} "
         f"release_note_lines={receipt.release_note_lines}"
     )
