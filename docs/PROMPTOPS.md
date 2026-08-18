@@ -1,6 +1,6 @@
 # PromptOps evidence layer
 
-PromptOps extends PromptBench without changing the benchmark producer/judge contract. The layer consumes already-generated, hash-verified reports and emits deterministic operations artifacts.
+PromptOps extends PromptBench without changing the benchmark producer/judge contract. The layer consumes already-generated, hash-verified reports and scorecards and emits deterministic operations artifacts.
 
 ## Artifacts
 
@@ -11,6 +11,7 @@ PromptOps extends PromptBench without changing the benchmark producer/judge cont
 | `failure_corpus` | one verified report | retain failed attempts and reasons | no |
 | `jury_consensus` | 1..256 verified reports | deterministic Borda-style consensus | no |
 | `dataset_manifest` | versioned suites | bind datasets and versions | no |
+| `route_decision` | one verified scorecard + explicit policy | choose an eligible candidate or abstain | yes |
 | `release_manifest` | dataset + scorecards + regressions | bind release evidence | yes |
 
 Every artifact carries `schema_version=1.0`, a `kind`, and an `artifact_sha` computed over canonical JSON before the digest field is added.
@@ -38,6 +39,24 @@ Tie-break order is deterministic:
 5. lexicographically smaller candidate id.
 
 The jury does not call a model and does not reinterpret outputs. It aggregates already-judged reports only.
+
+## Routing contract
+
+Routing consumes exactly one content-addressed `scorecard`. Before evaluating any candidate, PromptOps recomputes and verifies the scorecard `artifact_sha`, validates the scorecard schema, requires a complete unique rank sequence, requires the declared winner to equal rank 1, and validates finite pass-rate, latency, and cost metrics.
+
+A routing policy may specify:
+
+- `min_pass_rate` between `0` and `1`;
+- optional maximum mean latency in milliseconds;
+- optional maximum total cost in microunits;
+- an optional explicit candidate allowlist;
+- `fallback_count` from `0` to `64`.
+
+Candidates are evaluated in the verified scorecard rank order. A candidate is eligible only when it satisfies every supplied policy constraint. The first eligible candidate becomes `selected_candidate`; subsequent eligible candidates may be emitted as bounded fallbacks.
+
+If no candidate is eligible, the route artifact contains `decision=abstain`, `selected_candidate=null`, and no fallbacks. Abstention is a valid evidence result rather than an input error, and the CLI exits `3` so automation can fail closed.
+
+Every considered candidate retains explicit rejection reasons drawn from `not_allowed`, `pass_rate`, `latency`, and `cost`. The router never calls a model, never retries a provider, never infers missing capabilities, and never changes scorecard ranking.
 
 ## Failure corpus
 

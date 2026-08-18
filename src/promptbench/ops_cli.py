@@ -18,6 +18,7 @@ from .ops import (
     jury_consensus,
     release_manifest,
 )
+from .routing import RoutingPolicy, route_scorecard
 
 
 def _load(path: str) -> Any:
@@ -69,6 +70,15 @@ def build_parser() -> argparse.ArgumentParser:
     datasets.add_argument("suites", nargs="+")
     datasets.add_argument("-o", "--output")
 
+    route = sub.add_parser("route", help="route from one verified PromptOps scorecard")
+    route.add_argument("scorecard")
+    route.add_argument("--min-pass-rate", type=float, default=0.0)
+    route.add_argument("--max-latency-ms", type=float)
+    route.add_argument("--max-cost-microunits", type=float)
+    route.add_argument("--allow-candidate", action="append", default=None)
+    route.add_argument("--fallbacks", type=int, default=0)
+    route.add_argument("-o", "--output")
+
     release = sub.add_parser("release", help="bind PromptOps evidence into a release manifest")
     release.add_argument("--version", required=True)
     release.add_argument("--dataset", required=True)
@@ -97,6 +107,15 @@ def main(argv: list[str] | None = None) -> int:
             value = jury_consensus([_load(path) for path in args.reports])
         elif args.command == "datasets":
             value = dataset_manifest([_load(path) for path in args.suites])
+        elif args.command == "route":
+            policy = RoutingPolicy(
+                min_pass_rate=args.min_pass_rate,
+                max_mean_latency_ms=args.max_latency_ms,
+                max_total_cost_microunits=args.max_cost_microunits,
+                allowed_candidates=None if args.allow_candidate is None else tuple(args.allow_candidate),
+                fallback_count=args.fallbacks,
+            )
+            value = route_scorecard(_load(args.scorecard), policy=policy)
         else:
             value = release_manifest(
                 release_version=args.version,
@@ -106,6 +125,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         _write(value, getattr(args, "output", None))
         if args.command == "regress" and value.get("passed") is False:
+            return 3
+        if args.command == "route" and value.get("decision") == "abstain":
             return 3
         if args.command == "release" and value.get("regression_gate_passed") is False:
             return 3
