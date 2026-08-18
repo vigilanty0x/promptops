@@ -1,0 +1,69 @@
+name: Published release verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-published-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Validate release publication policy
+        run: python scripts/check_release_publish_policy.py
+      - name: Download published release and resolve tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="$(python -c 'import json; print(json.load(open("release-policy.v1.json"))["tag"])')"
+          mkdir -p /tmp/published-release
+          gh release view "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json tagName,isDraft,isPrerelease,url > /tmp/release-view.json
+          gh release download "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir /tmp/published-release
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha' > /tmp/tag-sha.txt
+          TAG_SHA="$(cat /tmp/tag-sha.txt)"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG_SHA" --jq '.commit.verification.verified')" = "true"
+      - name: Verify immutable release asset contract
+        run: |
+          python scripts/verify_published_release.py \
+            --assets-dir /tmp/published-release \
+            --view-json /tmp/release-view.json \
+            --policy release-policy.v1.json \
+            --tag-sha /tmp/tag-sha.txt
+      - name: Re-verify published wheel provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(python -c 'import json; print(json.load(open("release-policy.v1.json"))["version"])')"
+          SOURCE_DIGEST="$(cat /tmp/tag-sha.txt)"
+          PROVENANCE_ZIP="/tmp/published-release/promptops-${VERSION}-provenance.zip"
+          rm -rf /tmp/published-provenance
+          mkdir -p /tmp/published-provenance
+          unzip -q "$PROVENANCE_ZIP" -d /tmp/published-provenance
+          BUNDLE="$(find /tmp/published-provenance -type f -name attestation.json -print -quit)"
+          test -n "$BUNDLE"
+          test "$(find /tmp/published-provenance -type f -name attestation.json | wc -l)" -eq 1
+          test "$(find /tmp/published-release -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 10
+          for wheel in /tmp/published-release/*.whl; do
+            gh attestation verify "$wheel" \
+              --repo "$GITHUB_REPOSITORY" \
+              --bundle "$BUNDLE" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/ci.yml" \
+              --source-ref "refs/heads/main" \
+              --source-digest "$SOURCE_DIGEST" \
+              --deny-self-hosted-runners >/dev/null
+          done
+          echo "published release provenance verified for 10 canonical wheels"
