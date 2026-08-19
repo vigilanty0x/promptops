@@ -1,0 +1,127 @@
+name: Candidate SPDX SBOM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pyproject.toml"
+      - "packages/**/pyproject.toml"
+      - "src/**"
+      - "packages/**/src/**"
+      - "portfolio-compatibility.v1.json"
+      - "release-policy.v1.json"
+      - "scripts/generate_spdx_sbom.py"
+      - ".github/workflows/sbom.yml"
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "packages/**/pyproject.toml"
+      - "src/**"
+      - "packages/**/src/**"
+      - "portfolio-compatibility.v1.json"
+      - "release-policy.v1.json"
+      - "scripts/generate_spdx_sbom.py"
+      - ".github/workflows/sbom.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: promptops-candidate-sbom-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sbom:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Install exact build toolchain
+        run: |
+          python -m pip install --disable-pip-version-check "setuptools==83.0.0" "wheel==0.45.1"
+      - name: Build the ten canonical wheel subjects
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/promptops-sbom-wheels
+          mkdir -p /tmp/promptops-sbom-wheels
+          python -m pip wheel . --no-deps --no-build-isolation --wheel-dir /tmp/promptops-sbom-wheels
+          python - <<'PY' > /tmp/promptops-package-paths.txt
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("portfolio-compatibility.v1.json").read_text(encoding="utf-8"))
+          packages = sorted(item["canonical_path"] for item in manifest["packages"])
+          assert len(packages) == 9, f"expected 9 consolidated packages; got {len(packages)}"
+          assert len(packages) == len(set(packages)), "duplicate canonical package paths"
+          for package in packages:
+              print(package)
+          PY
+          while IFS= read -r package; do
+            python -m pip wheel "$package" --no-deps --no-build-isolation --wheel-dir /tmp/promptops-sbom-wheels
+          done < /tmp/promptops-package-paths.txt
+          test "$(find /tmp/promptops-sbom-wheels -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 10
+      - name: Generate deterministic SPDX SBOM twice
+        id: generate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/promptops-sbom-evidence
+          CREATED_AT="$(git show -s --format=%cI "$CANDIDATE_SHA")"
+          python scripts/generate_spdx_sbom.py \
+            --wheel-dir /tmp/promptops-sbom-wheels \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-sha "$CANDIDATE_SHA" \
+            --created-at "$CREATED_AT" \
+            --expected-count 10 \
+            --output /tmp/promptops-sbom-evidence/SBOM.spdx.json \
+            | tee /tmp/promptops-sbom-evidence/SBOM-RECEIPT.json
+          python scripts/generate_spdx_sbom.py \
+            --wheel-dir /tmp/promptops-sbom-wheels \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-sha "$CANDIDATE_SHA" \
+            --created-at "$CREATED_AT" \
+            --expected-count 10 \
+            --output /tmp/SBOM.rebuild.spdx.json >/tmp/SBOM.rebuild.receipt.json
+          cmp /tmp/promptops-sbom-evidence/SBOM.spdx.json /tmp/SBOM.rebuild.spdx.json
+          sha256sum /tmp/promptops-sbom-evidence/SBOM.spdx.json \
+            | sed 's#/tmp/promptops-sbom-evidence/##' \
+            > /tmp/promptops-sbom-evidence/SBOM.spdx.json.sha256
+          find /tmp/promptops-sbom-wheels -maxdepth 1 -type f -name '*.whl' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            | sed 's#/tmp/promptops-sbom-wheels/##' \
+            > /tmp/promptops-sbom-evidence/SHA256SUMS
+      - name: Verify SBOM against exact wheel subjects
+        shell: bash
+        run: |
+          set -euo pipefail
+          CREATED_AT="$(git show -s --format=%cI "$CANDIDATE_SHA")"
+          python scripts/generate_spdx_sbom.py \
+            --wheel-dir /tmp/promptops-sbom-wheels \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-sha "$CANDIDATE_SHA" \
+            --created-at "$CREATED_AT" \
+            --expected-count 10 \
+            --output /tmp/promptops-sbom-evidence/SBOM.spdx.json \
+            --verify \
+            | tee /tmp/promptops-sbom-evidence/SBOM-VERIFY-RECEIPT.json
+          expected="$(cut -d' ' -f1 /tmp/promptops-sbom-evidence/SBOM.spdx.json.sha256)"
+          observed="$(sha256sum /tmp/promptops-sbom-evidence/SBOM.spdx.json | awk '{print $1}')"
+          test "$expected" = "$observed"
+      - name: Upload candidate SBOM evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: promptops-candidate-sbom-${{ github.run_id }}
+          path: /tmp/promptops-sbom-evidence/
+          if-no-files-found: error
+          retention-days: 30
