@@ -24,6 +24,7 @@ def write_fixture(
     wheel_count: int = 10,
     obsolete_notes: bool = False,
     leave_publisher_when_disabled: bool = False,
+    omit_sbom_workflow: bool = False,
 ) -> None:
     (root / ".github" / "workflows").mkdir(parents=True)
     policy = {
@@ -46,6 +47,7 @@ def write_fixture(
             "canonical_wheel_python_source": "3.11",
             "include_sha256sums": True,
             "include_sigstore_provenance_bundle": True,
+            "include_spdx_sbom": True,
             "include_release_receipt": True,
         },
     }
@@ -59,7 +61,7 @@ def write_fixture(
     else:
         state = "Publication enabled." if publish_enabled else "Publication disabled pending review."
         notes = (
-            f"- 40 wheel-producing jobs require SLSA provenance for `{tag}`.\n"
+            f"- 40 wheel-producing jobs require SLSA provenance and a deterministic SPDX SBOM for `{tag}`.\n"
             f"- {state}"
         )
     (root / "CHANGELOG.md").write_text(
@@ -82,6 +84,7 @@ jobs:
       - uses: actions/download-artifact@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         with:
           name: wheel-provenance-${{ github.run_id }}
+      - run: test -f /tmp/release-assets/SBOM.spdx.json
       - run: test "$(find /tmp/release-wheels -maxdepth 1 -name '*.whl' | wc -l)" -eq 10
       - run: test -f /tmp/release-assets/RELEASE-RECEIPT.json
       - run: gh release create "$tag" /tmp/release-assets/*
@@ -97,6 +100,26 @@ jobs:
       - run: test -f release-policy.v1.json
 """
     (root / ".github" / "workflows" / "ci.yml").write_text(workflow, encoding="utf-8")
+    if not omit_sbom_workflow:
+        (root / ".github" / "workflows" / "sbom.yml").write_text(
+            """name: Candidate SPDX SBOM
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  sbom:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: python scripts/generate_spdx_sbom.py --expected-count 10 --output SBOM.spdx.json
+      - name: Verify SBOM against exact wheel subjects
+        run: python scripts/generate_spdx_sbom.py --expected-count 10 --output SBOM.spdx.json --verify
+      - uses: actions/upload-artifact@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        with:
+          name: promptops-candidate-sbom-${{ github.run_id }}
+""",
+            encoding="utf-8",
+        )
 
 
 class ReleasePublishPolicyTests(unittest.TestCase):
@@ -107,6 +130,7 @@ class ReleasePublishPolicyTests(unittest.TestCase):
         self.assertFalse(receipt.publish_enabled)
         self.assertEqual(receipt.required_jobs, 3)
         self.assertEqual(receipt.canonical_wheels, 10)
+        self.assertTrue(receipt.spdx_sbom_required)
         self.assertGreater(receipt.release_note_lines, 0)
 
     def test_valid_disabled_fixture_is_accepted(self):
@@ -115,6 +139,7 @@ class ReleasePublishPolicyTests(unittest.TestCase):
             write_fixture(root)
             receipt = validate_release_publish_policy(root)
             self.assertFalse(receipt.publish_enabled)
+            self.assertTrue(receipt.spdx_sbom_required)
 
     def test_valid_enabled_fixture_is_accepted(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -156,6 +181,13 @@ class ReleasePublishPolicyTests(unittest.TestCase):
             root = Path(tmp)
             write_fixture(root, obsolete_notes=True)
             with self.assertRaisesRegex(ReleasePublishPolicyError, "obsolete 20-job"):
+                validate_release_publish_policy(root)
+
+    def test_missing_candidate_sbom_workflow_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, omit_sbom_workflow=True)
+            with self.assertRaisesRegex(ReleasePublishPolicyError, "release publication inputs"):
                 validate_release_publish_policy(root)
 
 
