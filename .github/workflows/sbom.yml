@@ -27,6 +27,9 @@ on:
 permissions:
   contents: read
 
+env:
+  CANDIDATE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
 concurrency:
   group: promptops-candidate-sbom-${{ github.ref }}
   cancel-in-progress: true
@@ -38,6 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ env.CANDIDATE_SHA }}
           persist-credentials: false
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -72,12 +76,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/promptops-sbom-evidence
-          CREATED_AT="$(git show -s --format=%cI "$GITHUB_SHA")"
-          export CREATED_AT
+          CREATED_AT="$(git show -s --format=%cI "$CANDIDATE_SHA")"
           python scripts/generate_spdx_sbom.py \
             --wheel-dir /tmp/promptops-sbom-wheels \
             --repository "$GITHUB_REPOSITORY" \
-            --source-sha "$GITHUB_SHA" \
+            --source-sha "$CANDIDATE_SHA" \
             --created-at "$CREATED_AT" \
             --expected-count 10 \
             --output /tmp/promptops-sbom-evidence/SBOM.spdx.json \
@@ -85,11 +88,14 @@ jobs:
           python scripts/generate_spdx_sbom.py \
             --wheel-dir /tmp/promptops-sbom-wheels \
             --repository "$GITHUB_REPOSITORY" \
-            --source-sha "$GITHUB_SHA" \
+            --source-sha "$CANDIDATE_SHA" \
             --created-at "$CREATED_AT" \
             --expected-count 10 \
             --output /tmp/SBOM.rebuild.spdx.json >/tmp/SBOM.rebuild.receipt.json
           cmp /tmp/promptops-sbom-evidence/SBOM.spdx.json /tmp/SBOM.rebuild.spdx.json
+          sha256sum /tmp/promptops-sbom-evidence/SBOM.spdx.json \
+            | sed 's#/tmp/promptops-sbom-evidence/##' \
+            > /tmp/promptops-sbom-evidence/SBOM.spdx.json.sha256
           find /tmp/promptops-sbom-wheels -maxdepth 1 -type f -name '*.whl' -print0 \
             | sort -z \
             | xargs -0 sha256sum \
@@ -99,16 +105,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CREATED_AT="$(git show -s --format=%cI "$GITHUB_SHA")"
+          CREATED_AT="$(git show -s --format=%cI "$CANDIDATE_SHA")"
           python scripts/generate_spdx_sbom.py \
             --wheel-dir /tmp/promptops-sbom-wheels \
             --repository "$GITHUB_REPOSITORY" \
-            --source-sha "$GITHUB_SHA" \
+            --source-sha "$CANDIDATE_SHA" \
             --created-at "$CREATED_AT" \
             --expected-count 10 \
             --output /tmp/promptops-sbom-evidence/SBOM.spdx.json \
             --verify \
             | tee /tmp/promptops-sbom-evidence/SBOM-VERIFY-RECEIPT.json
+          expected="$(cut -d' ' -f1 /tmp/promptops-sbom-evidence/SBOM.spdx.json.sha256)"
+          observed="$(sha256sum /tmp/promptops-sbom-evidence/SBOM.spdx.json | awk '{print $1}')"
+          test "$expected" = "$observed"
       - name: Upload candidate SBOM evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
