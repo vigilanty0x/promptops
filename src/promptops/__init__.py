@@ -7,11 +7,13 @@ The implementation continues to reuse the proven PromptBench replay engine.
 __version__ = "0.6.0"
 
 from promptbench import BenchmarkHarness, BenchmarkReport, BenchmarkSuite, ValidationError
+from promptbench.workflow import run_workflow
 
 __all__ = [
     "BenchmarkHarness",
     "BenchmarkReport",
     "BenchmarkSuite",
     "ValidationError",
+    "run_workflow",
     "__version__",
 ]

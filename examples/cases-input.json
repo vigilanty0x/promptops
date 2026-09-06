@@ -1,0 +1,8 @@
+{
+  "schema": "promptops-cases-input/1",
+  "cases": [
+    {"id": "capital", "mode": "exact", "baseline": "Paris", "candidate": " Paris ", "expected": "Paris"},
+    {"id": "required-word", "mode": "contains", "baseline": "no", "candidate": "yes, Paris", "expected": "Paris"},
+    {"id": "object", "mode": "json", "baseline": "{\"ok\":true}", "candidate": "{ \"ok\": true }", "expected": {"ok": true}}
+  ]
+}

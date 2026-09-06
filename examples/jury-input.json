@@ -1,0 +1,17 @@
+{
+  "schema": "promptops-jury-input/1",
+  "suite_sha": "a87d4145ba20d3b3ce6e2f038286f5709485e9564d02c8e1b6d8efa09a4e2911",
+  "votes": [
+    {"choice": "concise", "weight": 3},
+    {"choice": "verbose", "weight": 1},
+    {"choice": "abstain", "weight": 1}
+  ],
+  "quorum": 2,
+  "threshold": 0.6,
+  "score_jury": {
+    "candidate_id": "concise",
+    "scores": [0.8, 0.9],
+    "pass_score": 0.7,
+    "max_spread": 0.35
+  }
+}

@@ -22,6 +22,51 @@ See [Migration to 0.6](MIGRATION-0.6.md) for compatibility, publication gates, a
 
 ## Quick start
 
+Evaluate a recorded comparison through the integrated workflow:
+
+```bash
+promptops run examples/suite.json --output ./assessment --min-pass-rate 0.9
+```
+
+One run validates the suite, evaluates its recorded samples, preserves failed
+attempts, builds the dataset and scorecard, and produces a routing decision.
+Add `--baseline-report previous/report.json` to require the regression gate.
+The new output directory contains the evidence and its SHA-256-bound result.
+Exit `3` means a valid abstention or a failed quality gate. No provider is called;
+the latency and cost values come from supplied replay records and their provenance
+is not independently attested by this operation.
+
+Add an explicit, supplied jury without changing routing authority:
+
+```bash
+promptops run examples/suite.json --output ./assessment-with-jury --min-pass-rate 0.7 --jury examples/jury-input.json
+promptops verify --run ./assessment-with-jury --suite examples/suite.json --jury examples/jury-input.json
+promptops jury --votes examples/jury-input.json -o weighted-jury.json
+promptops regress --cases examples/cases-input.json -o case-regression.json
+```
+
+The example case regression intentionally returns `3`. Weighted ballots and
+optional median/spread scores are supplied records; no juror or provider is
+called. A jury may veto the global gate but cannot replace or authorize a route.
+The existing report-based Borda jury remains available unchanged. See
+[Rules, scoring and explicit jury contract](docs/RULES-AND-JURY.md) for inputs,
+source parity, bounds, receipt semantics and export verification.
+
+Create a local bundle using the same replay and release engine:
+
+```bash
+promptops run examples/suite.json --bundle examples/bundle-input.json --output ./local-bundle --min-pass-rate 0.7
+promptops verify --run ./local-bundle --suite examples/suite.json --bundle examples/bundle-input.json
+```
+
+The bundle adds deterministic row assignment, actual local template/schema
+tests, a native release manifest and declared metric provenance. The replay
+still evaluates the complete suite: no training or held-out evaluation is
+performed. Detected sensitive patterns refuse bundle export before writing;
+this is not exhaustive secret detection. Omit `--bundle` to preserve existing
+outputs. See [Local workflow bundles](docs/WORKFLOW-BUNDLES.md) for the explicit
+input, bounds, source parity and replay-verification contract.
+
 Install the current source candidate locally:
 
 ```bash

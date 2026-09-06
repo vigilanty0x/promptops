@@ -1,0 +1,62 @@
+{
+  "schema": "promptops-bundle-input/1",
+  "suite_sha": "a87d4145ba20d3b3ce6e2f038286f5709485e9564d02c8e1b6d8efa09a4e2911",
+  "release_version": "0.6.0",
+  "split": {
+    "algorithm": "source-sha256-pair-v1",
+    "test_percent": 20
+  },
+  "packages": [
+    {
+      "candidate_id": "concise",
+      "record": {
+        "name": "package-concise",
+        "version": "1.0.0",
+        "prompt": "Answer concisely: {input}",
+        "variables": [
+          "input"
+        ],
+        "output_schema": {
+          "type": "string"
+        },
+        "tests": [
+          {
+            "variables": {
+              "input": "fixture"
+            },
+            "expected_prompt": "Answer concisely: fixture",
+            "output": "supplied sample"
+          }
+        ]
+      }
+    },
+    {
+      "candidate_id": "verbose",
+      "record": {
+        "name": "package-verbose",
+        "version": "1.0.0",
+        "prompt": "Explain and answer: {input}",
+        "variables": [
+          "input"
+        ],
+        "output_schema": {
+          "type": "string"
+        },
+        "tests": [
+          {
+            "variables": {
+              "input": "fixture"
+            },
+            "expected_prompt": "Explain and answer: fixture",
+            "output": "supplied sample"
+          }
+        ]
+      }
+    }
+  ],
+  "provenance": {
+    "source_id": "synthetic-example",
+    "declared_at": null,
+    "duration_ms": null
+  }
+}
