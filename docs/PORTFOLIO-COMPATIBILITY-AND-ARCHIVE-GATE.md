@@ -75,8 +75,8 @@ Un package n’est `archive_ready=true` que si **tous** les champs suivants sont
 
 De plus, le checker refuse un archivage si `exact_reference_matches` est non nul.
 
-Les quatre gates techniques sont vrais pour les neuf sources : compatibilité, scan consommateurs borné, redirection et rollback. L’approbation propriétaire est maintenant enregistrée pour les neuf entrées et interdit explicitement la suppression. Le verdict pré-action est donc : **ARCHIVE GATE READY — ARCHIVE ONLY**.
+Les quatre gates techniques sont vrais pour les neuf sources : compatibilité, scan consommateurs borné, redirection et rollback. L’approbation propriétaire est enregistrée pour les neuf entrées et interdit explicitement la suppression. Le 6 septembre 2026, la lecture serveur post-action a confirmé neuf dépôts archivés, zéro pull request ouverte, des têtes source inchangées et neuf redirections de page d’accueil vers PromptOps. Le verdict est donc : **ARCHIVED — SERVER VERIFIED — NO DELETION**.
 
 ## Ce que BLOCKED signifie
 
-`READY` ne signifie pas que l’état GitHub a déjà changé. Il autorise uniquement l’action réversible d’archiver les neuf dépôts, suivie d’une lecture de contrôle de leur état et de leurs redirections. La suppression reste interdite.
+`ARCHIVED — SERVER VERIFIED` signifie que l’action réversible a été exécutée et relue depuis GitHub. Les dépôts et leurs historiques existent toujours en lecture seule; la suppression reste interdite.

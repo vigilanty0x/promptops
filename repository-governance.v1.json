@@ -77,7 +77,7 @@
       "note": "The owner same-repository PR attestation mechanism was first verified end-to-end on PR #25. The main-push path was then independently verified through the immutable GitHub Release v0.5.0: a read-only workflow downloaded all 13 published assets, resolved the tag to source commit c8c6d133e86a119338edbc7b4e9142ce1c525fb5, verified the GitHub commit signature, checked the release receipt and every SHA-256, extracted the published Sigstore/SLSA bundle, and re-ran gh attestation verify successfully for all 10 canonical wheels."
     },
     "historical_repository_archival": {
-      "status": "APPROVED_FOR_ARCHIVE",
+      "status": "ARCHIVED_VERIFIED",
       "desired_only_after_approval": true,
       "source_of_truth": "portfolio-compatibility.v1.json",
       "packages_total": 9,
@@ -102,7 +102,26 @@
         "consumer_inventory_run": 34038891620,
         "consumer_inventory_evidence_sha256": "7cea37067c023dea175ecbd1c872a97cca0ce055a4a6cc3fea0140a830873911"
       },
-      "close_when": "GitHub server readback confirms that all nine approved repositories are archived and still redirect to promptops."
+      "server_readback": {
+        "observed_at": "2026-09-06T14:51:35.617Z",
+        "archived_repository_count": 9,
+        "open_pull_request_count": 0,
+        "repositories": [
+          "vigilanty0x/answer-diff",
+          "vigilanty0x/benchmark-run-recorder",
+          "vigilanty0x/consensus-engine",
+          "vigilanty0x/eval-dataset-builder",
+          "vigilanty0x/llm-jury",
+          "vigilanty0x/model-scorecard",
+          "vigilanty0x/multi-agent-failure-corpus",
+          "vigilanty0x/prompt-package-manager",
+          "vigilanty0x/prompt-regression"
+        ],
+        "source_heads_match_manifest": true,
+        "redirect_homepages_verified": true,
+        "archive_only_no_deletion": true
+      },
+      "close_when": "Closed on 2026-09-06: GitHub server readback confirmed all nine approved repositories archived, with zero open pull requests and canonical PromptOps redirects."
     }
   },
   "truth_contract": {

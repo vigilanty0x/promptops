@@ -34,6 +34,7 @@ class GovernanceReceipt:
     packages: int
     human_approvals: int
     archive_ready: int
+    archival_status: str
     attestation_status: str
     published_release: str
 
@@ -282,9 +283,15 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
         raise GovernanceManifestError(
             "historical repository approvals must be all-or-none and match archive readiness"
         )
-    expected_archival_status = (
-        "APPROVED_FOR_ARCHIVE" if approval_count == package_count else "BLOCKED_HUMAN_APPROVAL"
-    )
+    server_readback = archival.get("server_readback")
+    if approval_count == package_count:
+        expected_archival_status = (
+            "ARCHIVED_VERIFIED"
+            if isinstance(server_readback, dict)
+            else "APPROVED_FOR_ARCHIVE"
+        )
+    else:
+        expected_archival_status = "BLOCKED_HUMAN_APPROVAL"
     if archival.get("status") != expected_archival_status:
         raise GovernanceManifestError(
             f"historical repository archival status must be {expected_archival_status}"
@@ -299,7 +306,7 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
             raise GovernanceManifestError(
                 f"historical_repository_archival.{field} must equal portfolio value {expected}"
             )
-    if expected_archival_status == "APPROVED_FOR_ARCHIVE":
+    if expected_archival_status in {"APPROVED_FOR_ARCHIVE", "ARCHIVED_VERIFIED"}:
         approval = archival.get("approval")
         portfolio_approval = portfolio.get("human_approval")
         consumer_search = portfolio.get("consumer_search")
@@ -345,7 +352,30 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
             raise GovernanceManifestError("portfolio and governance approval identities must match")
         if portfolio_approval.get("action") != approval.get("action"):
             raise GovernanceManifestError("portfolio and governance approval actions must match")
-    elif "approval" in archival or "human_approval" in portfolio:
+        if expected_archival_status == "ARCHIVED_VERIFIED":
+            readback_at = _parse_timestamp(
+                server_readback.get("observed_at"),
+                "historical_repository_archival.server_readback.observed_at",
+            )
+            if readback_at < observed_at:
+                raise GovernanceManifestError("archive server readback must follow consumer inventory")
+            if server_readback.get("archived_repository_count") != package_count:
+                raise GovernanceManifestError("archive server readback count must match portfolio packages")
+            if server_readback.get("open_pull_request_count") != 0:
+                raise GovernanceManifestError("archived repositories must have zero open pull requests")
+            if server_readback.get("repositories") != expected_repositories:
+                raise GovernanceManifestError("archive server readback scope must match portfolio packages")
+            for field in (
+                "source_heads_match_manifest",
+                "redirect_homepages_verified",
+                "archive_only_no_deletion",
+            ):
+                _require_bool(
+                    server_readback.get(field),
+                    f"historical_repository_archival.server_readback.{field}",
+                    True,
+                )
+    elif "approval" in archival or "human_approval" in portfolio or "server_readback" in archival:
         raise GovernanceManifestError("blocked archival must not contain an approval record")
 
     truth = register.get("truth_contract")
@@ -365,6 +395,7 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
         packages=package_count,
         human_approvals=approval_count,
         archive_ready=ready_count,
+        archival_status=expected_archival_status,
         attestation_status=attestation_status,
         published_release=published_release,
     )
@@ -379,6 +410,7 @@ def main() -> int:
         "governance manifest verified: "
         f"gates={receipt.gates} packages={receipt.packages} "
         f"human_approvals={receipt.human_approvals} archive_ready={receipt.archive_ready} "
+        f"archival={receipt.archival_status} "
         f"attestation={receipt.attestation_status} published_release={receipt.published_release}"
     )
     return 0
