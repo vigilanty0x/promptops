@@ -29,8 +29,8 @@ class GovernanceManifestTests(unittest.TestCase):
         receipt = validate_governance_manifest(REPO_ROOT)
         self.assertEqual(receipt.gates, 3)
         self.assertEqual(receipt.packages, 9)
-        self.assertEqual(receipt.human_approvals, 0)
-        self.assertEqual(receipt.archive_ready, 0)
+        self.assertEqual(receipt.human_approvals, 9)
+        self.assertEqual(receipt.archive_ready, 9)
         self.assertEqual(
             receipt.attestation_status,
             "IMPLEMENTED_VERIFIED_PR_AND_MAIN_RELEASE",
@@ -57,6 +57,62 @@ class GovernanceManifestTests(unittest.TestCase):
             value["schema_version"] = "1.0"
             path.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(GovernanceManifestError, "schema_version must be 1.1"):
+                validate_governance_manifest(root)
+
+    def test_partial_archive_approval_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            path = root / "portfolio-compatibility.v1.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["packages"][0]["human_archive_approval"] = False
+            value["packages"][0]["archive_ready"] = False
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "all-or-none"):
+                validate_governance_manifest(root)
+
+    def test_approved_archive_requires_a_human_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            path = root / "repository-governance.v1.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            del value["gates"]["historical_repository_archival"]["approval"]
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "matching approval records"):
+                validate_governance_manifest(root)
+
+    def test_archive_approval_cannot_authorize_deletion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            path = root / "repository-governance.v1.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["gates"]["historical_repository_archival"]["approval"]["action"] = "delete"
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "forbid deletion"):
+                validate_governance_manifest(root)
+
+    def test_archive_approval_scope_must_match_packages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            path = root / "portfolio-compatibility.v1.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["human_approval"]["repositories"].pop()
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "repository scope"):
+                validate_governance_manifest(root)
+
+    def test_consumer_inventory_digest_must_match_portfolio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            path = root / "portfolio-compatibility.v1.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["consumer_search"]["evidence_sha256"] = "a" * 64
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "digest must match"):
                 validate_governance_manifest(root)
 
     def test_candidate_policy_cannot_redefine_published_release(self):

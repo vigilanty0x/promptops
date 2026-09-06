@@ -1,11 +1,16 @@
 {
   "schema_version": "1.0",
-  "generated_at": "2026-08-18",
+  "generated_at": "2026-09-06",
   "canonical_repository": "vigilanty0x/promptops",
   "consumer_search": {
-    "method": "exact GitHub code reference search for vigilanty0x/<source-repository>",
-    "scope": "repositories visible to the connected GitHub code-search integration",
-    "limitation": "zero matches is not proof that no private, local, cached, package-index, or external consumer exists"
+    "method": "current default-branch scan for repository links, workflow uses, package manifests, and common Python/JavaScript imports",
+    "scope": "all 112 public repositories owned by vigilanty0x",
+    "observed_at": "2026-09-06T14:21:24.310Z",
+    "expires_at": "2026-10-06T14:21:24.310Z",
+    "workflow_run": 34038891620,
+    "evidence_sha256": "7cea37067c023dea175ecbd1c872a97cca0ce055a4a6cc3fea0140a830873911",
+    "external_consumer_rule": "exclude references from the source repository itself and from the canonical promptops repository",
+    "limitation": "zero external matches is not proof that no private, local, cached, package-index, or third-party consumer exists"
   },
   "archive_policy": {
     "default": "BLOCKED",
@@ -16,6 +21,24 @@
       "rollback_documented",
       "human_archive_approval"
     ]
+  },
+  "human_approval": {
+    "approver": "vigilanty0x",
+    "approved_at": "2026-09-06",
+    "scope": "the nine historical package repositories listed in this manifest",
+    "repositories": [
+      "vigilanty0x/answer-diff",
+      "vigilanty0x/benchmark-run-recorder",
+      "vigilanty0x/consensus-engine",
+      "vigilanty0x/eval-dataset-builder",
+      "vigilanty0x/llm-jury",
+      "vigilanty0x/model-scorecard",
+      "vigilanty0x/multi-agent-failure-corpus",
+      "vigilanty0x/prompt-package-manager",
+      "vigilanty0x/prompt-regression"
+    ],
+    "basis": "The authenticated repository owner requested replacing the one-tool-per-repository layout with multi-tool projects.",
+    "action": "archive, never delete"
   },
   "packages": [
     {
@@ -32,8 +55,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "5c51cdf22afd2e9c55b59b888b1a60ff1b4b3d54", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     },
     {
       "source_repository": "vigilanty0x/benchmark-run-recorder",
@@ -49,8 +72,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "c0bfff75d2237bb48b95efa3389fdb6b4c45ccdc", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     },
     {
       "source_repository": "vigilanty0x/consensus-engine",
@@ -66,8 +89,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "5239acbb56d271f86c01162c17c04d1875e83df8", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     },
     {
       "source_repository": "vigilanty0x/eval-dataset-builder",
@@ -83,8 +106,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "7bbef9d75115ccc406cc47554cc77e22300c1385", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     },
     {
       "source_repository": "vigilanty0x/llm-jury",
@@ -100,8 +123,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "49d5fc90be79661721c8a89797aafd50bb5fa069", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     },
     {
       "source_repository": "vigilanty0x/model-scorecard",
@@ -117,8 +140,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "203870578fac187e97ff6854ea041bd16f815c8b", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     },
     {
       "source_repository": "vigilanty0x/multi-agent-failure-corpus",
@@ -134,8 +157,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "b541a772943d63d5a37a0dccf3d4631f843885f4", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     },
     {
       "source_repository": "vigilanty0x/prompt-package-manager",
@@ -151,8 +174,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "cff0de7a8a37d992d0079341955f79ca8801ce77", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     },
     {
       "source_repository": "vigilanty0x/prompt-regression",
@@ -168,8 +191,8 @@
       "redirect_ready": true,
       "redirect_evidence": {"pr": 2, "merge_sha": "d877d4487c3322b3cdb68d51b085e1185efcf50d", "path": "README.md", "ci": "success"},
       "rollback_documented": true,
-      "human_archive_approval": false,
-      "archive_ready": false
+      "human_archive_approval": true,
+      "archive_ready": true
     }
   ]
 }
