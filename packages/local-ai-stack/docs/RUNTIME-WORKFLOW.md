@@ -34,7 +34,7 @@ written by this module. Successful inference returns its requested text to the
 caller and includes only digests/counts for audit consumers.
 
 The coordination implementation was adapted from the separately reviewed
-SKYOM Ollama coordinator. The algorithm and Windows/POSIX checks are retained;
+A private Ollama coordinator. The algorithm and Windows/POSIX checks are retained;
 the application data-root import was replaced by `LOCAL_AI_STATE_ROOT` and the
 default POSIX group name made generic. No original module was modified.
 Sharing an existing deployment requires matching its lock path and any shared
