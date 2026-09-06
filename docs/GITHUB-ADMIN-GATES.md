@@ -98,11 +98,11 @@ The release verifier is intentionally a separate read-only workflow from the wri
 
 Nine historical repositories were consolidated under `packages/` and received canonical-development redirects. Their compatibility, consumer scan, redirect evidence, rollback documentation, CI, wheel builds, installed-wheel contracts, canonical wheel provenance, and published canonical release evidence have been verified.
 
-Archival remains intentionally blocked. `portfolio-compatibility.v1.json` records `human_archive_approval=false` and `archive_ready=false` for every source repository.
+On 2026-09-06, the authenticated repository owner explicitly approved archival without deletion for all nine historical repositories. `portfolio-compatibility.v1.json` records `human_archive_approval=true` and `archive_ready=true` for every source repository and binds the decision to fresh public consumer-inventory run `34038891620`.
 
-No archive/delete action may be taken until explicit human approval is recorded. The absence of visible exact GitHub URL consumers is not proof that no private/local/external consumer exists.
+The approved operation is archive-only. Deletion remains forbidden. The absence of detected public consumers is not proof that no private/local/external consumer exists, so compatibility and rollback material remain preserved in PromptOps.
 
-**Closure proof:** explicit human approval plus a fresh portfolio compatibility check showing every required archive-policy field true for the selected repositories.
+**Closure proof:** a fresh portfolio compatibility check showing every required archive-policy field true, followed by GitHub server readback confirming all nine repositories are archived and still point to PromptOps.
 
 ## Current source-owned evidence
 
@@ -127,4 +127,4 @@ Those controls reduce the amount of trust placed on repository convention. They 
 
 ## Machine-readable register
 
-`repository-governance.v1.json` records branch protection and historical archival as blocked, while recording signed artifact provenance and the published main release as implemented with executed verification proofs. `scripts/check_governance_manifest.py` cross-checks the published version/tag against `release-policy.v1.json` and makes the distinction fail-closed so a future handoff cannot silently turn an unverified server/human blocker into a green source-code claim or erase the executed provenance/release proof.
+`repository-governance.v1.json` records branch protection as blocked and historical archival as explicitly approved, while recording signed artifact provenance and the published main release as implemented with executed verification proofs. `scripts/check_governance_manifest.py` cross-checks the approval, the published version/tag and the fresh consumer evidence so a future handoff cannot silently expand approval into deletion or erase the executed provenance/release proof.

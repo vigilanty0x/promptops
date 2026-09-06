@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased - 2026-09-06
+
+- Record the repository owner's explicit approval to archive, never delete, the nine historical package repositories already consolidated under `packages/`.
+- Bind that approval to the fresh all-public-repository consumer inventory run `34038891620` (112/112 repositories scanned, zero scan errors).
+- Keep archive authorization all-or-none and fail closed when approval identity, date, action, inventory run, or evidence digest is missing or inconsistent.
+
 ## 0.6.0 - 2026-08-18
 
 - Make **PromptOps** the canonical product, package and README identity while retaining the proven PromptBench replay engine as a compatibility layer.

@@ -1,6 +1,6 @@
 {
   "schema_version": "1.1",
-  "observed_at": "2026-08-18",
+  "observed_at": "2026-09-06",
   "repository": "vigilanty0x/promptops",
   "gates": {
     "branch_protection": {
@@ -77,13 +77,32 @@
       "note": "The owner same-repository PR attestation mechanism was first verified end-to-end on PR #25. The main-push path was then independently verified through the immutable GitHub Release v0.5.0: a read-only workflow downloaded all 13 published assets, resolved the tag to source commit c8c6d133e86a119338edbc7b4e9142ce1c525fb5, verified the GitHub commit signature, checked the release receipt and every SHA-256, extracted the published Sigstore/SLSA bundle, and re-ran gh attestation verify successfully for all 10 canonical wheels."
     },
     "historical_repository_archival": {
-      "status": "BLOCKED_HUMAN_APPROVAL",
+      "status": "APPROVED_FOR_ARCHIVE",
       "desired_only_after_approval": true,
       "source_of_truth": "portfolio-compatibility.v1.json",
       "packages_total": 9,
-      "human_archive_approval_count": 0,
-      "archive_ready_count": 0,
-      "close_when": "Explicit human archive approval is recorded and every package remains archive_ready under the portfolio archive policy."
+      "human_archive_approval_count": 9,
+      "archive_ready_count": 9,
+      "approval": {
+        "approver": "vigilanty0x",
+        "approved_at": "2026-09-06",
+        "scope": "nine historical PromptOps package repositories",
+        "repositories": [
+          "vigilanty0x/answer-diff",
+          "vigilanty0x/benchmark-run-recorder",
+          "vigilanty0x/consensus-engine",
+          "vigilanty0x/eval-dataset-builder",
+          "vigilanty0x/llm-jury",
+          "vigilanty0x/model-scorecard",
+          "vigilanty0x/multi-agent-failure-corpus",
+          "vigilanty0x/prompt-package-manager",
+          "vigilanty0x/prompt-regression"
+        ],
+        "action": "archive, never delete",
+        "consumer_inventory_run": 34038891620,
+        "consumer_inventory_evidence_sha256": "7cea37067c023dea175ecbd1c872a97cca0ce055a4a6cc3fea0140a830873911"
+      },
+      "close_when": "GitHub server readback confirms that all nine approved repositories are archived and still redirect to promptops."
     }
   },
   "truth_contract": {

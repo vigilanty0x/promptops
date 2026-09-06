@@ -11,6 +11,7 @@ pinned ``published-release.v1.json`` record, not the next candidate policy.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import json
 from pathlib import Path
 import re
@@ -19,6 +20,8 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_PREFIXED = re.compile(r"^sha256:[0-9a-f]{64}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_ISO_DATE = re.compile(r"^20[0-9]{2}-[0-9]{2}-[0-9]{2}$")
 
 
 class GovernanceManifestError(ValueError):
@@ -85,6 +88,17 @@ def _portfolio_counts(portfolio: dict) -> tuple[int, int, int]:
                 f"portfolio packages[{index}] cannot be archive_ready without human approval"
             )
     return len(packages), approvals, ready
+
+
+def _parse_timestamp(value: object, field: str) -> datetime:
+    text = _require_nonempty_text(value, field)
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise GovernanceManifestError(f"{field} must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise GovernanceManifestError(f"{field} must include a timezone")
+    return parsed
 
 
 def _verify_owner_pr_proof(proof: object) -> None:
@@ -262,9 +276,18 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
 
     package_count, approval_count, ready_count = _portfolio_counts(portfolio)
     archival = gates["historical_repository_archival"]
-    if not isinstance(archival, dict) or archival.get("status") != "BLOCKED_HUMAN_APPROVAL":
+    if not isinstance(archival, dict):
+        raise GovernanceManifestError("historical repository archival gate must be an object")
+    if approval_count not in (0, package_count) or ready_count != approval_count:
         raise GovernanceManifestError(
-            "historical repository archival must remain BLOCKED_HUMAN_APPROVAL until explicit approval"
+            "historical repository approvals must be all-or-none and match archive readiness"
+        )
+    expected_archival_status = (
+        "APPROVED_FOR_ARCHIVE" if approval_count == package_count else "BLOCKED_HUMAN_APPROVAL"
+    )
+    if archival.get("status") != expected_archival_status:
+        raise GovernanceManifestError(
+            f"historical repository archival status must be {expected_archival_status}"
         )
     expected_counts = {
         "packages_total": package_count,
@@ -276,10 +299,54 @@ def validate_governance_manifest(root: Path = ROOT) -> GovernanceReceipt:
             raise GovernanceManifestError(
                 f"historical_repository_archival.{field} must equal portfolio value {expected}"
             )
-    if approval_count != 0 or ready_count != 0:
-        raise GovernanceManifestError(
-            "this blocked register must be updated/reviewed once human archive approvals change"
+    if expected_archival_status == "APPROVED_FOR_ARCHIVE":
+        approval = archival.get("approval")
+        portfolio_approval = portfolio.get("human_approval")
+        consumer_search = portfolio.get("consumer_search")
+        if not isinstance(approval, dict) or not isinstance(portfolio_approval, dict):
+            raise GovernanceManifestError("approved archival requires matching approval records")
+        if not isinstance(consumer_search, dict):
+            raise GovernanceManifestError("approved archival requires consumer search evidence")
+        approver = _require_nonempty_text(approval.get("approver"), "historical_repository_archival.approval.approver")
+        approved_at = _require_nonempty_text(approval.get("approved_at"), "historical_repository_archival.approval.approved_at")
+        if _ISO_DATE.fullmatch(approved_at) is None:
+            raise GovernanceManifestError("historical repository approval date must be ISO YYYY-MM-DD")
+        expected_repositories = sorted(
+            item["source_repository"] for item in portfolio["packages"]
         )
+        if approval.get("repositories") != expected_repositories:
+            raise GovernanceManifestError("governance approval repository scope must match portfolio packages")
+        if portfolio_approval.get("repositories") != expected_repositories:
+            raise GovernanceManifestError("portfolio approval repository scope must match portfolio packages")
+        if approval.get("action") != "archive, never delete":
+            raise GovernanceManifestError("historical repository approval must forbid deletion")
+        inventory_run = _require_positive_int(
+            approval.get("consumer_inventory_run"),
+            "historical_repository_archival.approval.consumer_inventory_run",
+        )
+        evidence_digest = approval.get("consumer_inventory_evidence_sha256")
+        if not isinstance(evidence_digest, str) or _SHA256.fullmatch(evidence_digest) is None:
+            raise GovernanceManifestError("consumer inventory evidence digest must be 64-hex")
+        if consumer_search.get("workflow_run") != inventory_run:
+            raise GovernanceManifestError("consumer inventory run must match portfolio evidence")
+        if consumer_search.get("evidence_sha256") != evidence_digest:
+            raise GovernanceManifestError("consumer inventory digest must match portfolio evidence")
+        observed_at = _parse_timestamp(
+            consumer_search.get("observed_at"), "consumer_search.observed_at"
+        )
+        expires_at = _parse_timestamp(
+            consumer_search.get("expires_at"), "consumer_search.expires_at"
+        )
+        if expires_at <= observed_at:
+            raise GovernanceManifestError("consumer inventory expiry must follow observation")
+        if approved_at != observed_at.date().isoformat():
+            raise GovernanceManifestError("archive approval date must match consumer inventory date")
+        if portfolio_approval.get("approver") != approver or portfolio_approval.get("approved_at") != approved_at:
+            raise GovernanceManifestError("portfolio and governance approval identities must match")
+        if portfolio_approval.get("action") != approval.get("action"):
+            raise GovernanceManifestError("portfolio and governance approval actions must match")
+    elif "approval" in archival or "human_approval" in portfolio:
+        raise GovernanceManifestError("blocked archival must not contain an approval record")
 
     truth = register.get("truth_contract")
     if not isinstance(truth, dict):
