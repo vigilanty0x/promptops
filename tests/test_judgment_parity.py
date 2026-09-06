@@ -1,7 +1,7 @@
 """Differential checks against preserved source engines; no provider execution."""
 import copy
 import importlib.util
-import json
+
 from pathlib import Path
 import random
 import unittest
