@@ -1,0 +1,232 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+from scripts.check_release_policy import MERGE_SHA, ReleasePolicyError, validate_release_policy
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_NAMES = (
+    "local-model-benchmark",
+    "model-fallback-proxy",
+    "ollama-fleet-manager",
+)
+
+
+def write_fixture(
+    root: Path,
+    *,
+    publish_enabled: bool = False,
+    release_authorized: bool = False,
+    archive_authorized: bool = False,
+    rehearsal_state: str = "MERGED",
+    include_python_314: bool = True,
+    workflow_extra: str = "",
+) -> None:
+    (root / ".github" / "workflows").mkdir(parents=True)
+    (root / "release-policy.v1.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "repository": "vigilanty0x/local-ai-stack",
+                "product": "Local AI Stack",
+                "distribution": "local-ai-stack",
+                "version": "0.2.0",
+                "proposed_tag": "v0.2.0",
+                "state": "PREPARED",
+                "publish_enabled": publish_enabled,
+                "release_authorized": release_authorized,
+                "consumer_mutation_authorized": False,
+                "archive_authorized": archive_authorized,
+                "rollback_version": "0.1.0",
+                "requires": [
+                    "multi_os_runtime_ci",
+                    "imported_package_ci",
+                    "wheel_and_sdist",
+                    "installed_artifact_smoke",
+                    "positive_and_counterproof",
+                    "sha256_checksums",
+                    "cyclonedx_sbom",
+                    "verified_slsa_provenance",
+                    "consumer_compatibility",
+                    "explicit_publication_decision",
+                    "post_publication_verification",
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (root / ".portfolio-rehearsal.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "target": "local-ai-stack",
+                "mergeCommitSha": MERGE_SHA,
+                "sources": [
+                    {
+                        "repository": name,
+                        "prefix": f"packages/{name}",
+                        "ancestor": True,
+                        "treeMatch": True,
+                    }
+                    for name in PACKAGE_NAMES
+                ],
+                "state": rehearsal_state,
+                "archiveGate": "BLOCKED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    classifiers = [
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+    ]
+    if include_python_314:
+        classifiers.append("Programming Language :: Python :: 3.14")
+    classifier_lines = "\n".join(f'  "{item}",' for item in classifiers)
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "local-ai-stack"\nversion = "0.2.0"\nclassifiers = [\n'
+        + classifier_lines
+        + "\n]\n",
+        encoding="utf-8",
+    )
+    (root / "MIGRATION-0.2.md").write_text(
+        "# Migration vers Local AI Stack 0.2.0\n\n## Rollback\nReturn to 0.1.0.\n",
+        encoding="utf-8",
+    )
+    versions = '["3.11", "3.12", "3.13", "3.14"]' if include_python_314 else '["3.11", "3.12", "3.13"]'
+    package_lines = "\n".join(f"          - {name}" for name in PACKAGE_NAMES)
+    (root / ".github" / "workflows" / "ci.yml").write_text(
+        "name: ci\npermissions:\n  contents: read\njobs:\n  test:\n    runs-on: ubuntu-latest\n"
+        f"    strategy:\n      matrix:\n        python-version: {versions}\n"
+        "  packages:\n    strategy:\n      matrix:\n        package:\n"
+        + package_lines
+        + "\n"
+        '        python-version: ["3.11", "3.12"]\n'
+        "    defaults:\n      run:\n        working-directory: packages/${{ matrix.package }}\n"
+        "    steps:\n"
+        "      - run: python -m pip wheel . --no-deps --no-build-isolation --wheel-dir dist\n"
+        "      - run: python -m unittest discover -s tests -v\n"
+        "      - run: python scripts/check.py\n"
+        "  attest-candidate:\n    needs: [test, packages]\n"
+        + workflow_extra,
+        encoding="utf-8",
+    )
+
+
+class ReleasePolicyTests(unittest.TestCase):
+    def test_repository_candidate_is_prepared_and_disabled(self) -> None:
+        policy = validate_release_policy(REPO_ROOT)
+        self.assertEqual(policy["version"], "0.2.0")
+        self.assertEqual(policy["state"], "PREPARED")
+        self.assertFalse(policy["publish_enabled"])
+        self.assertFalse(policy["release_authorized"])
+        self.assertFalse(policy["consumer_mutation_authorized"])
+        self.assertFalse(policy["archive_authorized"])
+        self.assertEqual(policy["rollback_version"], "0.1.0")
+
+    def test_valid_disabled_fixture_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root)
+            self.assertFalse(validate_release_policy(root)["publish_enabled"])
+
+    def test_release_command_is_rejected_while_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, workflow_extra="      - run: gh release create v0.2.0\n")
+            with self.assertRaisesRegex(ReleasePolicyError, "publication authority"):
+                validate_release_policy(root)
+
+    def test_write_permission_is_rejected_while_disabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, workflow_extra="    permissions:\n      contents: write\n")
+            with self.assertRaisesRegex(ReleasePolicyError, "publication authority"):
+                validate_release_policy(root)
+
+    def test_publish_enabled_cannot_be_silently_flipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, publish_enabled=True)
+            with self.assertRaisesRegex(ReleasePolicyError, "publish_enabled"):
+                validate_release_policy(root)
+
+    def test_release_authorization_cannot_be_silently_flipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, release_authorized=True)
+            with self.assertRaisesRegex(ReleasePolicyError, "release_authorized"):
+                validate_release_policy(root)
+
+    def test_archive_authorization_cannot_be_silently_flipped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, archive_authorized=True)
+            with self.assertRaisesRegex(ReleasePolicyError, "archive_authorized"):
+                validate_release_policy(root)
+
+    def test_stale_rehearsal_state_is_rejected_after_merge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, rehearsal_state="REHEARSAL_ONLY")
+            with self.assertRaisesRegex(ReleasePolicyError, "must not remain REHEARSAL_ONLY"):
+                validate_release_policy(root)
+
+    def test_python_314_support_cannot_disappear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root, include_python_314=False)
+            with self.assertRaisesRegex(ReleasePolicyError, "Python 3.14"):
+                validate_release_policy(root)
+
+    def test_imported_package_cannot_disappear_from_ci(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root)
+            workflow = root / ".github" / "workflows" / "ci.yml"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "          - model-fallback-proxy\n", ""
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ReleasePolicyError, "missing imported package"):
+                validate_release_policy(root)
+
+    def test_package_repository_checks_cannot_disappear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root)
+            workflow = root / ".github" / "workflows" / "ci.yml"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "      - run: python scripts/check.py\n", ""
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ReleasePolicyError, "required control"):
+                validate_release_policy(root)
+
+    def test_attestation_must_wait_for_package_ci(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_fixture(root)
+            workflow = root / ".github" / "workflows" / "ci.yml"
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "needs: [test, packages]", "needs: [test]"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ReleasePolicyError, "must wait"):
+                validate_release_policy(root)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -4,6 +4,18 @@ PromptOps is a deterministic, offline quality-operations toolkit for comparing p
 
 The proven PromptBench replay engine remains inside the product as a compatibility layer. New integrations should use **PromptOps** as the product identity.
 
+## One concrete project, 15 tools
+
+This repository is the single home for the prompt, evaluation, and local-model
+tool family. PromptOps and the compatible PromptBench engine live at the root;
+the other tools live under `packages/`. The Local AI Stack subtree also owns
+Local Model Benchmark, Model Fallback Proxy, and Ollama Fleet Manager.
+
+`MONOREPO.json` is the machine-checkable inventory of all 15 former repository
+identities and their current paths. CI validates that every mapped path exists,
+that source commit and tree identifiers are recorded, and that deletion of the
+source repositories remains unauthorized during preparation.
+
 ## Identity contract
 
 The prepared 0.6 candidate uses these public identities:

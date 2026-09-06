@@ -152,7 +152,7 @@ def _verify_attestation_job(
     _name, start, end = matches[0]
     text = "\n".join(lines[start:end])
     required_fragments = (
-        "needs: [verify, verify-consolidated-package]",
+        "needs: [verify, verify-consolidated-package, verify-local-ai-stack]",
         "runs-on: ubuntu-latest",
         "github.event_name == 'push'",
         "github.event_name == 'pull_request'",

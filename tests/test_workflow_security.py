@@ -51,7 +51,7 @@ def workflow_with_attestation(*, guarded: bool = True) -> str:
         else "${{ github.event_name == 'pull_request' }}"
     )
     return workflow() + f"""  attest-wheels:
-    needs: [verify, verify-consolidated-package]
+    needs: [verify, verify-consolidated-package, verify-local-ai-stack]
     if: {guard}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -94,9 +94,9 @@ class WorkflowSecurityTests(unittest.TestCase):
     def test_current_repository_workflows_match_prepared_candidate_policy(self):
         receipt = validate_workflows(REPO_ROOT)
         self.assertEqual(receipt.workflows, 3)
-        self.assertEqual(receipt.jobs, 5)
+        self.assertEqual(receipt.jobs, 6)
         self.assertGreaterEqual(receipt.external_actions, 13)
-        self.assertEqual(receipt.checkout_steps, 4)
+        self.assertEqual(receipt.checkout_steps, 5)
         self.assertEqual(receipt.attestation_jobs, 1)
         self.assertEqual(receipt.release_jobs, 0)
 
