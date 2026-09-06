@@ -4,7 +4,7 @@ PromptOps deliberately separates **candidate preparation** from **published rele
 
 - `release-policy.v1.json` describes the next candidate and whether publication is authorized.
 - `published-release.v1.json` pins the independently verified release that actually exists.
-- A package version in `pyproject.toml`, successful CI, or signed provenance is never sufficient by itself to claim publication.
+- A package version in `pyproject.toml`, successful CI, an SPDX SBOM, or signed provenance is never sufficient by itself to claim publication.
 
 ## Prepared candidate
 
@@ -16,11 +16,12 @@ Current candidate:
 - proposed tag: `v0.6.0`
 - `publish_enabled`: **false**
 - prerequisite evidence groups: `verify`, `verify-consolidated-package`, `attest-wheels`
+- supply-chain evidence: deterministic SPDX 2.3 SBOM plus GitHub/Sigstore SLSA provenance
 - rollback: verified published `v0.5.0`
 
 Because publication is disabled, `.github/workflows/ci.yml` contains **no** `publish-release` job, no release `contents: write` permission, and no `gh release create` command. `scripts/check_release_publish_policy.py` fails if any of those authorities reappear while the policy remains disabled.
 
-The candidate can still produce and verify signed wheel provenance. That proves the candidate bytes came from the expected GitHub Actions workflow and source SHA; it does not authorize a public release.
+The candidate can still produce and verify wheel evidence, an SPDX 2.3 SBOM and signed wheel provenance. Those prove properties of the candidate bytes and their build lineage; they do not authorize a public release.
 
 ## Published release
 
@@ -42,7 +43,14 @@ The read-only published-release workflow loads `published-release.v1.json`, not 
 3. Every wheel is installed and checked in a clean virtual environment.
 4. The root wheel must install as `promptops-replay` and expose canonical `promptops` plus legacy `promptbench` namespaces and CLIs at one version.
 5. `attest-wheels` downloads all 40 retained wheels, proves they collapse to ten byte-identical canonical wheel names, generates GitHub/Sigstore SLSA provenance, and verifies all ten subjects with `gh attestation verify`.
-6. With `publish_enabled=false`, the chain stops there. There is no publication step.
+6. `.github/workflows/sbom.yml` independently rebuilds the ten canonical wheel subjects with the exact audited backend, generates an SPDX 2.3 document from their embedded Core Metadata, regenerates it a second time and requires byte-identical output, then verifies the document against the exact wheel bytes and retains `SBOM.spdx.json`, `SHA256SUMS` and generation/verification receipts.
+7. With `publish_enabled=false`, the chain stops there. There is no publication step.
+
+### SBOM scope and limits
+
+The candidate SBOM is deliberately narrow and machine-verifiable. It describes the exact ten Python wheel subjects and their direct `Requires-Dist` declarations. Canonical wheel subjects are SHA-256 bound, direct dependencies are represented by SPDX `DEPENDS_ON` relationships, and the document namespace binds the GitHub repository, candidate source SHA and canonical wheel inventory digest.
+
+The SBOM does **not** claim to be an operating-system, container, environment or resolved transitive dependency inventory. `filesAnalyzed=false` is retained for package subjects because this gate verifies release wheel identities and package metadata rather than pretending to perform source-file license analysis. Missing, duplicate, malformed or unexpected wheel subjects make the generator fail closed.
 
 ## Historical `v0.5.0` immutable assets
 
@@ -53,13 +61,13 @@ The published `v0.5.0` release contains exactly 13 uploaded assets:
 - `promptops-0.5.0-provenance.zip` containing the GitHub/Sigstore provenance evidence from the publication workflow run;
 - `RELEASE-RECEIPT.json` binding repository, version, tag, source commit, source ref, workflow run, wheel digests, checksum-file digest, and provenance-ZIP digest.
 
-GitHub's automatically generated source archives are separate from these uploaded release assets.
+GitHub's automatically generated source archives are separate from these uploaded release assets. The new 0.6 SBOM requirement is prospective; it does not rewrite the immutable historical `v0.5.0` asset contract.
 
 ## Consumer verification
 
 The read-only verifier downloads the pinned published release, resolves its tag, verifies the source commit signature, recomputes the immutable asset contract, extracts the provenance bundle, and re-runs `gh attestation verify` for every published wheel.
 
-The release receipt proves what bytes were published. The Sigstore/SLSA bundle proves the signed GitHub Actions provenance of the canonical wheel subjects. Neither should be substituted for the other.
+The release receipt proves what bytes were published. The Sigstore/SLSA bundle proves the signed GitHub Actions provenance of the canonical wheel subjects. The SPDX SBOM describes candidate package subjects and direct dependency metadata. None should be substituted for another.
 
 ## Re-authorizing a future publication
 
@@ -68,15 +76,17 @@ Publishing `v0.6.0` requires a separate reviewed change. At minimum it must:
 1. switch `release-policy.v1.json` to `publish_enabled=true` for exactly `0.6.0` / `v0.6.0`;
 2. restore an owner/main-only publisher after the 40 producer jobs and `attest-wheels`;
 3. confine `contents: write` to that publisher job;
-4. preserve one-time immutable asset semantics and read-back verification;
-5. retain the rollback contract to `v0.5.0` until the new release is independently verified;
-6. after successful publication, update `published-release.v1.json` only with observed release/tag/source evidence.
+4. include the verified `SBOM.spdx.json`, canonical wheel checksums, signed provenance and release receipt in the immutable release asset contract;
+5. preserve one-time immutable asset semantics and read-back verification;
+6. retain the rollback contract to `v0.5.0` until the new release is independently verified;
+7. after successful publication, update `published-release.v1.json` only with observed release/tag/source evidence.
 
 Until those steps happen, `PREPARED` must never be reported as `RELEASED`.
 
 ## Failure handling
 
 - If the build matrix fails, no provenance is accepted.
+- If SBOM generation, deterministic regeneration or exact-wheel verification fails, the candidate supply-chain gate fails.
 - If provenance generation or verification fails, the candidate remains blocked.
 - If a disabled policy coexists with release-write authority, CI fails closed.
 - If candidate identity/version drifts from `pyproject.toml`, canonical/legacy namespaces, changelog, migration guide or README, root CI fails.

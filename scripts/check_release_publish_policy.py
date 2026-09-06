@@ -1,10 +1,13 @@
 """Validate the explicit PromptOps candidate publication policy.
 
-A prepared package version is not permission to publish it.  The policy can be
-``publish_enabled=false`` while a candidate is under review.  In that state the
-CI workflow must contain no release publisher at all.  Re-enabling publication
+A prepared package version is not permission to publish it. The policy can be
+``publish_enabled=false`` while a candidate is under review. In that state the
+CI workflow must contain no release publisher at all. Re-enabling publication
 therefore requires a reviewed policy + workflow change instead of inheriting an
 old release decision.
+
+The candidate supply-chain contract also requires a deterministic SPDX SBOM
+workflow. Generating SBOM evidence does not authorize publication.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ EXPECTED_ASSETS = {
     "canonical_wheel_python_source": "3.11",
     "include_sha256sums": True,
     "include_sigstore_provenance_bundle": True,
+    "include_spdx_sbom": True,
     "include_release_receipt": True,
 }
 
@@ -45,6 +49,7 @@ class ReleasePublishReceipt:
     required_jobs: int
     canonical_wheels: int
     release_note_lines: int
+    spdx_sbom_required: bool
 
 
 def _load_json(path: Path) -> dict:
@@ -84,6 +89,31 @@ def _release_notes(changelog: str, version: str) -> list[str]:
     return notes
 
 
+def _verify_sbom_workflow_contract(workflow: str) -> None:
+    required_fragments = (
+        "name: Candidate SPDX SBOM",
+        "runs-on: ubuntu-24.04",
+        "permissions:\n  contents: read",
+        "scripts/generate_spdx_sbom.py",
+        "--expected-count 10",
+        "SBOM.spdx.json",
+        "Verify SBOM against exact wheel subjects",
+        "--verify",
+        "name: promptops-candidate-sbom-${{ github.run_id }}",
+    )
+    for fragment in required_fragments:
+        if fragment not in workflow:
+            raise ReleasePublishPolicyError(
+                f"candidate SBOM workflow is missing required fragment {fragment!r}"
+            )
+    forbidden = ("contents: write", "gh release create", "pull_request_target:")
+    for fragment in forbidden:
+        if fragment in workflow:
+            raise ReleasePublishPolicyError(
+                f"candidate SBOM workflow contains forbidden authority {fragment!r}"
+            )
+
+
 def _verify_workflow_contract(workflow: str, *, publish_enabled: bool) -> None:
     if publish_enabled:
         required_workflow_fragments = (
@@ -95,6 +125,7 @@ def _verify_workflow_contract(workflow: str, *, publish_enabled: bool) -> None:
             "release-policy.v1.json",
             'pattern: "*-wheel-py3.11"',
             'name: wheel-provenance-${{ github.run_id }}',
+            "SBOM.spdx.json",
             "gh release create",
             "gh release view",
             "gh release download",
@@ -127,6 +158,9 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         pyproject = tomllib.loads((root / PYPROJECT_PATH.name).read_text(encoding="utf-8"))
         changelog = (root / CHANGELOG_PATH.name).read_text(encoding="utf-8")
         workflow = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        sbom_workflow = (root / ".github" / "workflows" / "sbom.yml").read_text(
+            encoding="utf-8"
+        )
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
         raise ReleasePublishPolicyError("cannot read release publication inputs") from exc
 
@@ -168,7 +202,7 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         raise ReleasePublishPolicyError(
             "current release notes still describe the obsolete 20-job CI matrix"
         )
-    for phrase in ("40 wheel-producing jobs", "SLSA provenance", f"`{tag}`"):
+    for phrase in ("40 wheel-producing jobs", "SLSA provenance", "SPDX SBOM", f"`{tag}`"):
         if phrase not in note_text:
             raise ReleasePublishPolicyError(
                 f"current release notes must describe candidate evidence: missing {phrase!r}"
@@ -179,6 +213,7 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         )
 
     _verify_workflow_contract(workflow, publish_enabled=publish_enabled)
+    _verify_sbom_workflow_contract(sbom_workflow)
 
     return ReleasePublishReceipt(
         version=version,
@@ -187,6 +222,7 @@ def validate_release_publish_policy(root: Path = ROOT) -> ReleasePublishReceipt:
         required_jobs=len(EXPECTED_REQUIRES),
         canonical_wheels=EXPECTED_ASSETS["canonical_wheel_count"],
         release_note_lines=len(notes),
+        spdx_sbom_required=EXPECTED_ASSETS["include_spdx_sbom"],
     )
 
 
@@ -199,6 +235,7 @@ def main() -> int:
         "release publish policy verified: "
         f"version={receipt.version} tag={receipt.tag} publish_enabled={str(receipt.publish_enabled).lower()} "
         f"required_jobs={receipt.required_jobs} canonical_wheels={receipt.canonical_wheels} "
+        f"spdx_sbom_required={str(receipt.spdx_sbom_required).lower()} "
         f"release_note_lines={receipt.release_note_lines}"
     )
     return 0
