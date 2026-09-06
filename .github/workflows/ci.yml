@@ -194,6 +194,7 @@ jobs:
           python scripts/check.py
           python scripts/check_release_policy.py
           PYTHONPATH=src python -m unittest discover -s tests -v
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src python -m pytest -q tests
       - name: Verify the three nested local-model tools
         run: |
           set -euo pipefail
