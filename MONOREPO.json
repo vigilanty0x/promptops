@@ -1,0 +1,191 @@
+{
+  "delete_authorized": false,
+  "schema_version": 1,
+  "status": "LOCAL_PREPARATION",
+  "target": {
+    "kind": "PRODUCT",
+    "repository": "vigilanty0x/promptops",
+    "sources": [
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/answer-diff",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "5c51cdf22afd2e9c55b59b888b1a60ff1b4b3d54",
+          "tree": "5e69dd3241b19f4e6b1462399dd729d89b784b44",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/answer-diff"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/benchmark-run-recorder",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "c0bfff75d2237bb48b95efa3389fdb6b4c45ccdc",
+          "tree": "4e40bec2fd15d139be2d10bf79edba0030c41d6c",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/benchmark-run-recorder"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/consensus-engine",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "5239acbb56d271f86c01162c17c04d1875e83df8",
+          "tree": "765d8b9ceb3ff071730bf6f16715c8001f3cc131",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/consensus-engine"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/eval-dataset-builder",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "7bbef9d75115ccc406cc47554cc77e22300c1385",
+          "tree": "1c1d238a0797442d08aa70f33cd66cb21b69af87",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/eval-dataset-builder"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/llm-jury",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "49d5fc90be79661721c8a89797aafd50bb5fa069",
+          "tree": "b9d3c411a4223f9fb81bb1958b4b5371c427c9e8",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/llm-jury"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/local-ai-stack",
+        "source": {
+          "archived": false,
+          "default_branch": "main",
+          "head": "567b60b30073a5bebaf900ec4a9fa8af1f40afa4",
+          "tree": "d807f98cb0757e61c820688471b83ebdc93a2783",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/local-ai-stack"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/local-model-benchmark",
+        "source": {
+          "archived": false,
+          "default_branch": "main",
+          "head": "1e5ab13d37a794f8f756eb5760871ff8f2f3806d",
+          "tree": "8866c6cb9ec2e9b3ceebb24a644cb80f11097150",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/local-ai-stack/packages/local-model-benchmark"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/model-fallback-proxy",
+        "source": {
+          "archived": false,
+          "default_branch": "main",
+          "head": "fa2ff3df8088efebcb53a9e23780800fe3735cf0",
+          "tree": "66f2111c278973fa3ac94c164c90d7ba08c436e2",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/local-ai-stack/packages/model-fallback-proxy"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/model-scorecard",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "203870578fac187e97ff6854ea041bd16f815c8b",
+          "tree": "30e7d239dd653cc4a494a7f430dd8b1f4f042ee3",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/model-scorecard"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/multi-agent-failure-corpus",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "b541a772943d63d5a37a0dccf3d4631f843885f4",
+          "tree": "13e44060f4fadcdb5f9d4006f88d4f6ad1831caf",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/multi-agent-failure-corpus"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/ollama-fleet-manager",
+        "source": {
+          "archived": false,
+          "default_branch": "main",
+          "head": "c93bf42cf7da971a38733c6c8211adf30095d136",
+          "tree": "e3e2037efa31e8e76e748fef39aee3db929b8a80",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/local-ai-stack/packages/ollama-fleet-manager"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/prompt-package-manager",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "cff0de7a8a37d992d0079341955f79ca8801ce77",
+          "tree": "f7c7e87a802973f6ec9395d3981770c73e10faad",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/prompt-package-manager"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/prompt-regression",
+        "source": {
+          "archived": true,
+          "default_branch": "main",
+          "head": "d877d4487c3322b3cdb68d51b085e1185efcf50d",
+          "tree": "aa3c877c8d16039fe6bb9db9ba68c136897cfd4d",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "packages/prompt-regression"
+      },
+      {
+        "disposition": "ABSORB",
+        "repository": "vigilanty0x/promptbench",
+        "source": {
+          "archived": false,
+          "default_branch": "main",
+          "head": "57e79a4b13fa75cccf81dcb8695ac5c713482e65",
+          "tree": "72c45c541bcb377310123b053d73b10afc32ca5d",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "."
+      },
+      {
+        "disposition": "KEEP",
+        "repository": "vigilanty0x/promptops",
+        "source": {
+          "archived": false,
+          "default_branch": "main",
+          "head": "d1b76b180d64b655d1fcd76df13427f66e5a8ce0",
+          "tree": "07bd894be8d2ec12791781853ac8a775f8b73d69",
+          "visibility": "PUBLIC"
+        },
+        "target_path": "."
+      }
+    ]
+  }
+}

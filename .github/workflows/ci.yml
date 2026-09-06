@@ -28,6 +28,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --disable-pip-version-check -e .
       - run: python scripts/check.py
+      - name: Verify the 15-tool monorepo map
+        run: python scripts/check_monorepo.py
       - run: python scripts/check_release_metadata.py
       - run: python scripts/check_release_publish_policy.py
       - run: python scripts/check_python_support.py
@@ -169,8 +171,39 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  verify-local-ai-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/local-ai-stack
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+      - name: Install Local AI Stack test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade -r requirements-build.txt
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r requirements-test.lock
+          python -m pip install --disable-pip-version-check --no-deps -e .
+      - name: Verify Local AI Stack
+        run: |
+          python scripts/check.py
+          python scripts/check_release_policy.py
+          PYTHONPATH=src python -m unittest discover -s tests -v
+      - name: Verify the three nested local-model tools
+        run: |
+          set -euo pipefail
+          for package in local-model-benchmark model-fallback-proxy ollama-fleet-manager; do
+            python "packages/$package/scripts/check.py"
+            PYTHONPATH="packages/$package/src" python -m unittest discover -s "packages/$package/tests" -v
+          done
+
   attest-wheels:
-    needs: [verify, verify-consolidated-package]
+    needs: [verify, verify-consolidated-package, verify-local-ai-stack]
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner) || (github.event_name == 'pull_request' && github.actor == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
