@@ -1,9 +1,9 @@
-import copy
+
 import unittest
 
 from fixtures import suite_data
 from promptbench.harness import BenchmarkHarness
-from promptbench.models import BenchmarkSuite, ReplaySample
+from promptbench.models import BenchmarkSuite
 from promptbench.runner import ReplayProducer
 
 

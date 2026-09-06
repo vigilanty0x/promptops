@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 import stat
 import statistics
-from typing import Any
+
 
 from .judges import judge
 from .models import JudgeSpec

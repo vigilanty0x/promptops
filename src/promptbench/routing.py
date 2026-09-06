@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 import re
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 from .ops import OPS_SCHEMA_VERSION, OpsValidationError, _digest
 
