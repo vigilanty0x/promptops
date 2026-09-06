@@ -1,0 +1,30 @@
+{
+  "schema": "historical-test-fixtures/1",
+  "scope": "exact pre-change snapshots from approved public source lineage; no alternative runtime engine",
+  "fixtures": [
+    {
+      "path": "workflow_before_jury.py",
+      "repository": "https://github.com/vigilanty0x/promptops",
+      "lineage_head": "d184344122a4530ddfb65b15e972082e9db5de3d",
+      "source_path": "src/promptbench/workflow.py",
+      "sha256": "5e23ff73c7fabd07085ead9006d1a1caf9abb2356325d800b1844f6538e06123",
+      "approved_snapshot": "promptops-parity-01",
+      "commit_contains_snapshot": false,
+      "note": "Approved public working-tree snapshot over lineage_head; not claimed as that Git blob.",
+      "license": "Apache-2.0",
+      "license_file": "promptops-LICENSE"
+    },
+    {
+      "path": "workflow_before_bundles.py",
+      "repository": "https://github.com/vigilanty0x/promptops",
+      "lineage_head": "d184344122a4530ddfb65b15e972082e9db5de3d",
+      "source_path": "src/promptbench/workflow.py",
+      "sha256": "1b7d33aa012e1f9c81164d8e4b63ecbed1c9fc9eac8cc2d47f51eb883f86cc6b",
+      "approved_snapshot": "promptops-bundles-parity-01",
+      "commit_contains_snapshot": false,
+      "note": "Approved public working-tree snapshot over lineage_head; not claimed as that Git blob.",
+      "license": "Apache-2.0",
+      "license_file": "promptops-LICENSE"
+    }
+  ]
+}

@@ -18,6 +18,7 @@ from .ops import (
     _verified_artifact,
 )
 from .routing import MAX_ROUTING_CANDIDATES, validate_scorecard
+from .judgment import verify_judgment
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _SUPPORTED = {
@@ -25,6 +26,8 @@ _SUPPORTED = {
     "regression",
     "failure_corpus",
     "jury_consensus",
+    "jury_assessment",
+    "case_regression",
     "dataset_manifest",
     "route_decision",
     "release_manifest",
@@ -337,6 +340,8 @@ def verify_artifact(artifact: Mapping[str, Any], *, expected_kind: str | None = 
             "regression": _verify_regression,
             "failure_corpus": _verify_failure_corpus,
             "jury_consensus": _verify_jury,
+            "jury_assessment": verify_judgment,
+            "case_regression": verify_judgment,
             "dataset_manifest": _verify_dataset,
             "route_decision": _verify_route,
             "release_manifest": _verify_release,

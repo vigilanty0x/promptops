@@ -1,0 +1,123 @@
+"""Integrated replay assessment using the existing verified PromptOps engines."""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+from .cli import _read_json
+from .harness import BenchmarkHarness
+from .models import BenchmarkSuite
+from .ops import (OpsValidationError,build_scorecard,build_failure_corpus,
+                  compare_reports,dataset_manifest)
+from .routing import RoutingPolicy,route_scorecard
+from .verification import verify_artifact
+from .judgment import assess_jury, read_input
+
+
+def _encode(value: Any) -> bytes:
+    return (json.dumps(value,ensure_ascii=False,sort_keys=True,indent=2,allow_nan=False)+'\n').encode('utf-8')
+
+
+def _save(root: Path,name: str,value: Any) -> str:
+    encoded=_encode(value)
+    with (root/name).open('xb') as stream:
+        stream.write(encoded);stream.flush();os.fsync(stream.fileno())
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _build_outputs(suite_path, *, baseline=None, policy=None, jury_path=None):
+    data=_read_json(str(suite_path))
+    suite=BenchmarkSuite.from_dict(data)
+    previous=_read_json(str(baseline)) if baseline is not None else None
+    active_policy=policy or RoutingPolicy(min_pass_rate=.9)
+    report=BenchmarkHarness(suite).run().to_dict()
+    scorecard=build_scorecard(report)
+    failures=build_failure_corpus(report)
+    dataset=dataset_manifest([data])
+    route=route_scorecard(scorecard,policy=active_policy)
+    values={'report.json':report,'dataset.json':dataset,'scorecard.json':scorecard,
+            'failures.json':failures,'route.json':route}
+    regression=None
+    if previous is not None:
+        regression=compare_reports(previous,report)
+        values['regression.json']=regression
+    jury=None
+    if jury_path is not None:
+        context={'suite_sha':suite.suite_sha,'report_sha':report['report_sha'],
+                 'candidate_ids':sorted(row['candidate_id'] for row in report['candidates']),
+                 'selected_candidate':route['selected_candidate']}
+        jury=assess_jury(read_input(jury_path),context=context)
+        values['jury.json']=jury
+    # Validation precedes creation of the output and uses the existing engines.
+    for name,value in values.items():
+        if name!='report.json': verify_artifact(value)
+    artifacts={name:hashlib.sha256(_encode(value)).hexdigest() for name,value in values.items()}
+    result={
+        'schema':'promptops-workflow/1','state':'DONE','mode':'recorded_replay',
+        'provider_called':False,'provenance':'not-verified',
+        'suite_sha':suite.suite_sha,'report_sha':report['report_sha'],
+        'decision':route['decision'],
+        'gate_passed':route['decision']!='abstain' and (regression is None or regression['passed']) and (jury is None or jury['gate_passed']),
+        'regression_checked':regression is not None,'artifacts':artifacts,
+    }
+    return values,result
+
+
+def run_workflow(suite_path: str | Path,output: str | Path,*,baseline: str | Path | None=None,
+                 policy: RoutingPolicy | None=None,jury_path: str | Path | None=None) -> dict[str,Any]:
+    """Evaluate replays; an explicit jury can veto but never authorize the route.
+
+    No provider is called. Jury ballots and replay metrics remain supplied data.
+    With no jury_path, receipt fields, routing and output bytes stay compatible.
+    """
+    target=Path(output)
+    if target.exists() or target.is_symlink():
+        raise OpsValidationError('workflow output already exists')
+    parent=target.absolute().parent.resolve(strict=True)
+    target=parent/target.name
+    values,result=_build_outputs(suite_path,baseline=baseline,policy=policy,jury_path=jury_path)
+    target.mkdir(exist_ok=False)
+    for name,value in values.items():
+        if _save(target,name,value)!=result['artifacts'][name]:
+            raise OpsValidationError('workflow artifact write differs from content identity')
+    _save(target,'result.json',result)
+    return result
+
+
+def verify_workflow(output, suite_path, *, baseline=None, jury_path=None):
+    """Replay an exported run against the explicit original inputs, without writes."""
+    root=Path(output)
+    for item in (root,*root.absolute().parents):
+        if item.is_symlink() or getattr(item,'is_junction',lambda:False)():
+            raise OpsValidationError('linked workflow directory refused')
+    if not root.is_dir():raise OpsValidationError('workflow directory required')
+    # Only canonical artifact names are read; never trust paths from a receipt.
+    known={'report.json','dataset.json','scorecard.json','failures.json','route.json',
+           'regression.json','jury.json','result.json'}
+    names={path.name for path in root.iterdir()}
+    if not names<=known or 'result.json' not in names or 'route.json' not in names:
+        raise OpsValidationError('workflow artifact inventory invalid')
+    if ('jury.json' in names)!=(jury_path is not None):
+        raise OpsValidationError('original jury input is required exactly when the run includes jury.json')
+    if ('regression.json' in names)!=(baseline is not None):
+        raise OpsValidationError('original baseline is required exactly when the run includes regression.json')
+    stored={name:read_input(root/name,maximum=64*1024*1024) for name in names}
+    verify_artifact(stored['route.json'],expected_kind='route_decision')
+    raw_policy=stored['route.json']['policy']
+    required={'min_pass_rate','max_mean_latency_ms','max_total_cost_microunits','allowed_candidates','fallback_count'}
+    if set(raw_policy)!=required:raise OpsValidationError('workflow routing policy invalid')
+    policy=RoutingPolicy(**{**raw_policy,'allowed_candidates':None if raw_policy['allowed_candidates'] is None else tuple(raw_policy['allowed_candidates'])})
+    values,result=_build_outputs(suite_path,baseline=baseline,policy=policy,jury_path=jury_path)
+    expected={**values,'result.json':result}
+    if names!=set(expected):raise OpsValidationError('workflow artifact inventory differs from replay')
+    for name,value in expected.items():
+        if stored[name]!=value:raise OpsValidationError('workflow replay differs: '+name)
+        # Export means exact canonical bytes, including jury, not only equal JSON.
+        _,raw=read_input(root/name,maximum=64*1024*1024,with_bytes=True)
+        if raw!=_encode(value):raise OpsValidationError('workflow artifact bytes differ: '+name)
+    return {'valid':True,'kind':'workflow','suite_sha':result['suite_sha'],'report_sha':result['report_sha'],
+            'artifacts_verified':len(values),'jury_checked':jury_path is not None,
+            'gate_passed':result['gate_passed'],'provider_called':False,'provenance':'not-verified'}
