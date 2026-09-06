@@ -5,6 +5,7 @@
 - Record the repository owner's explicit approval to archive, never delete, the nine historical package repositories already consolidated under `packages/`.
 - Bind that approval to the fresh all-public-repository consumer inventory run `34038891620` (112/112 repositories scanned, zero scan errors).
 - Keep archive authorization all-or-none and fail closed when approval identity, date, action, inventory run, or evidence digest is missing or inconsistent.
+- Record the post-action GitHub readback: nine repositories archived, zero open pull requests, unchanged source heads, and verified canonical home-page redirects.
 
 ## 0.6.0 - 2026-08-18
 

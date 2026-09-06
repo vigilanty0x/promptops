@@ -102,7 +102,7 @@ On 2026-09-06, the authenticated repository owner explicitly approved archival w
 
 The approved operation is archive-only. Deletion remains forbidden. The absence of detected public consumers is not proof that no private/local/external consumer exists, so compatibility and rollback material remain preserved in PromptOps.
 
-**Closure proof:** a fresh portfolio compatibility check showing every required archive-policy field true, followed by GitHub server readback confirming all nine repositories are archived and still point to PromptOps.
+**Closure proof:** complete on 2026-09-06. A fresh portfolio compatibility check showed every required archive-policy field true; GitHub server readback then confirmed all nine repositories archived, zero open pull requests, unchanged source heads, and PromptOps home-page redirects. No repository was deleted.
 
 ## Current source-owned evidence
 
@@ -127,4 +127,4 @@ Those controls reduce the amount of trust placed on repository convention. They 
 
 ## Machine-readable register
 
-`repository-governance.v1.json` records branch protection as blocked and historical archival as explicitly approved, while recording signed artifact provenance and the published main release as implemented with executed verification proofs. `scripts/check_governance_manifest.py` cross-checks the approval, the published version/tag and the fresh consumer evidence so a future handoff cannot silently expand approval into deletion or erase the executed provenance/release proof.
+`repository-governance.v1.json` records branch protection as blocked and historical archival as server-verified, while recording signed artifact provenance and the published main release as implemented with executed verification proofs. `scripts/check_governance_manifest.py` cross-checks the approval, archived scope, server readback, published version/tag and consumer evidence so a future handoff cannot silently expand approval into deletion or erase the executed proof.

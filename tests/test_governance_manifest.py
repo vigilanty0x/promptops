@@ -31,6 +31,7 @@ class GovernanceManifestTests(unittest.TestCase):
         self.assertEqual(receipt.packages, 9)
         self.assertEqual(receipt.human_approvals, 9)
         self.assertEqual(receipt.archive_ready, 9)
+        self.assertEqual(receipt.archival_status, "ARCHIVED_VERIFIED")
         self.assertEqual(
             receipt.attestation_status,
             "IMPLEMENTED_VERIFIED_PR_AND_MAIN_RELEASE",
@@ -113,6 +114,29 @@ class GovernanceManifestTests(unittest.TestCase):
             value["consumer_search"]["evidence_sha256"] = "a" * 64
             path.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaisesRegex(GovernanceManifestError, "digest must match"):
+                validate_governance_manifest(root)
+
+    def test_archive_server_readback_scope_must_match_packages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            path = root / "repository-governance.v1.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            readback = value["gates"]["historical_repository_archival"]["server_readback"]
+            readback["repositories"].pop()
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "readback scope"):
+                validate_governance_manifest(root)
+
+    def test_archived_status_requires_server_readback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copy_inputs(root)
+            path = root / "repository-governance.v1.json"
+            value = json.loads(path.read_text(encoding="utf-8"))
+            del value["gates"]["historical_repository_archival"]["server_readback"]
+            path.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaisesRegex(GovernanceManifestError, "APPROVED_FOR_ARCHIVE"):
                 validate_governance_manifest(root)
 
     def test_candidate_policy_cannot_redefine_published_release(self):
